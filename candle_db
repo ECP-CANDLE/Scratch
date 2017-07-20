@@ -1,0 +1,229 @@
+#!/usr/bin/env python
+
+# CANDLE DB
+
+from __future__ import print_function
+
+import argparse
+
+import pysolr
+import copy
+
+# Currently the only way to modify these is to edit them here
+HOSTPORT = "localhost:8983"
+TIMEOUT = 10
+
+# allowed cores in Solr
+#CORES = set("run", "experiment")
+
+UNK = "unknown"
+# default values to be used with each allowed core
+DEFAULTVALUES = { 
+    "run" : dict(
+        parameters = "",
+        benchmark_id  = UNK,
+        dataset_id    = UNK,
+        experiment_id = UNK,
+        start_time    = None,
+        end_time      = None,
+        runtime_hours = None,
+        status        = "SUCCESS",
+        run_progress  = None,
+        training_accuracy = None,
+        training_loss = None,
+        validation_accuracy = None,
+        validation_loss = None,
+        model_checkpoint_file = None,
+        model_description_file = None,
+        model_weight_file = None,
+        model_result_files = None
+    ),
+    "experiment" : dict(
+        experiment_id = None,
+        benchmark_id  = UNK,
+        dataset_id    = UNK,
+        experiment_title = "untitled",
+        description = "_blank",
+        optimization_package_name = UNK,
+        optimization_package_version = UNK,
+        objective_function = UNK,
+        search_space = UNK,
+        search_strategy = UNK,
+        max_runs = UNK,
+        status = None,
+        start_time = None,
+        end_time = None,
+        system_description = UNK,
+        keys = None                
+    )
+}
+    
+def abort(msg):
+    print("candle_db: " + msg)
+    sys.exit(1)
+
+class CandleDB:
+    """Encapsulate communication with Solr"""
+    url_template = "http://%s/solr/%s"
+    def __init__(self, core, hostport=HOSTPORT, timeout=10):
+        """Setup a Solr instance. The timeout is optional."""
+        if core not in DEFAULTVALUES.keys():
+            abort("unknown core name: %s", core)
+        self.core = core
+        self.keyvalues = copy.deepcopy(DEFAULTVALUES[core])
+        core_url = CandleDB.url_template % (hostport, core)
+        self.solr = pysolr.Solr(core_url, timeout=timeout)
+        
+    def add(self, **kwargs):
+        args = copy.deepcopy(self.keyvalues)
+        args.update(kwargs)
+        print("Arguments:  {}".format(args))
+        self.solr.add([args])
+        
+    def delete(self, query="*:*", id_=None):
+        """solr uses id which is reserved in Python, hence id_"""
+        if id_:
+            # TODO: probably need to enforce str or list of string...
+            self.solr.delete(id=id_)
+        elif query is not None:
+            self.solr.delete(q=query)
+        else:
+            print("Solr delete: must specify either id or q")
+    
+#==============================================================================
+# NOT SURE IF THIS WAS EVER USED
+#==============================================================================
+#==============================================================================
+# def experiment_insert(experiment_id,
+#                       benchmark_id  = "unknown",
+#                       dataset_id    = "unknown",
+#                       experiment_title = "untitled",
+#                       description = "_blank",
+#                       optimization_package_name = "unknown",
+#                       optimization_package_version = "unknown",
+#                       objective_function = "unknown",
+#                       search_space = "unknown",
+#                       search_strategy = "unknown",
+#                       max_runs = "unknown",
+#                       status = None,
+#                       start_time = None,
+#                       end_time = None,
+#                       system_description = "unknown",
+#                       keys = None):
+#     set_url("experiment")
+#     D = {
+#             "experiment_id": experiment_id,
+#             "benchmark_id": benchmark_id,
+#             "experiment_title": experiment_title
+#         }
+#     if keys != None: D.update(kv2dict(keys))
+# 
+#     solr.add([ D ])
+# 
+# def params2string(N1, NE):
+#     return "N1=%i,NE=%i" % (N1, NE)
+# 
+#==============================================================================
+def kv2dict(L):
+    """ Convert list L of [ K=V... ] to dict { K:V ... } """
+    result = {}
+    for kv in L:
+        print(kv)
+        tokens = kv.split('=')
+        key = tokens[0]
+        if len(tokens) == 1:
+            result[key] = ""
+        else:
+            value = tokens[1]
+            result[key] = value
+    return result
+
+def update(remainder):
+    if len(remainder) < 1:
+        abort("update: requires core name!")
+    core = remainder[0]
+    db = CandleDB(core=core)
+    kv = kv2dict(remainder[1:])
+    if core == "run":
+        db.add(**kv)
+
+def query(args):
+    if len(args) < 1:
+        abort("query: requires core name!")
+    db = CandleDB(core=args[0])
+    q = "*:*" # Default
+    if len(args) == 2:
+        q = args[1]
+    # Return up to 1B results (default is 10):
+    results = db.solr.search(q=q, rows=1000*1000*1000)
+    return results
+
+def query_print(args):
+    results = query(args)
+    print("results: " + str(len(results.docs)))
+    for result in results:
+        print("----")
+        print_result(result)
+
+def print_result(result):
+    copy = result.copy()
+    del copy["_version_"]
+    print_table(copy)
+
+def print_table(D):
+    """D is a dict"""
+    n = max(len(k) for k in D.keys()) # Length of longest key
+    for k,v in D.items(): #D.iteritems():
+        print("%*s = %s" % (-n, k, v))
+
+def delete(args):
+    if len(args) != 1:
+        abort("delete: requires core name!")
+    db = CandleDB(core=args[0])
+    db.delete()
+
+def ls(args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--no-count', default=False, action='store_true')
+    parser.add_argument("remainder", nargs="*")
+    ns = parser.parse_args(args)
+    if len(ns.remainder) < 1:
+        abort("ls: requires core name!")
+    db = ns.remainder[0]
+    results = query(ns.remainder)
+    if not ns.no_count:
+        print("results: " + str(len(results.docs)))
+    if db == "experiment":
+        ls_experiment(ns.remainder[1:], results)
+    elif db == "run":
+        ls_run(ns.remainder[1:], results)
+
+def ls_experiment(args, results):
+    for result in results:
+        print(result["experiment_id"])
+
+def ls_run(args, results):
+    table = {}
+    for result in results:
+        parameters = result["parameters"][0]
+        table[result["run_id"]] = parameters
+    print_table(table)
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Requires: subcommand arguments...")
+        sys.exit(1)
+
+    subcommand = sys.argv[1]
+    remainder  = sys.argv[2:]
+    if subcommand == "delete":
+        delete(remainder)
+    elif subcommand == "update":
+        update(remainder)
+    elif subcommand == "query":
+        query_print(remainder)
+    elif subcommand == "ls":
+        ls(remainder)
+    else:
+        abort("unknown subcommand: " + subcommand)
