@@ -13,8 +13,9 @@ import copy
 HOSTPORT = "localhost:8983"
 TIMEOUT = 10
 
-# allowed cores in Solr
-#CORES = set("run", "experiment")
+# DEFAULTVALUES: keys are the allowed cores in solr
+# each key indexes a dictionary of default values for that core
+# must match each core's schema.xml file; must edit if schema changes
 
 UNK = "unknown"
 # default values to be used with each allowed core
@@ -59,6 +60,7 @@ DEFAULTVALUES = {
         keys = None                
     )
 }
+# TODO: find a better mechanism than a global variable to embed into CandleDB
     
 def abort(msg):
     print("candle_db: " + msg)
@@ -92,15 +94,19 @@ class CandleDB:
         else:
             print("Solr delete: must specify either id or q")
     
-
 #==============================================================================
-# Keyword arguments in Python:
+# # Keyword arguments in Python:
+#
 # def f(**kwargs):
 #     # kwargs is a dictionary
+#     # ... do something useful with kwargs ...
+#
 # Calling f(a=1, b=2, c=3) is equivalent to:
+#
 # D = {"a":1, "b":2, "c":3}
 # f(**D)
-# D can be accessed within f as kwargs
+#
+# # D can be accessed within the body of f as kwargs
 #==============================================================================
 
 def update_run(**kwargs):
@@ -110,9 +116,18 @@ def update_run(**kwargs):
     # split parameters on "," into strings of ","-separated values
     # e.g. ["N1=1", "NE=6"] 
     kwargs["parameters"] = kwargs["parameters"].split(",")
+
+    # enforce float values, per schema.xml for run
+    float_fields = set(("training_accuracy", "training_loss",
+        "validation_accuracy", "validation_loss"))
     
-    # TODO: numerous fields are defined as float in the schema
-    # test and enforce this somehow, or solr will throw an error
+    for ff in float_fields.intersection(set(kwargs.keys())):
+        try:
+            kwargs[ff] = float(kwargs[ff])
+        except:
+            print("{} requires a float".format(ff))
+            # remove the offending field from the update
+            del kwargs[ff]
     
     db = CandleDB(core="run")
     db.add(**kwargs)
@@ -126,43 +141,16 @@ def experiment_insert(**kwargs):
             kwargs.update(kv2dict(keys))
         del kwargs["keys"]
     # according to the schema max_runs is an int
-    try:
-        kwargs["max_runs"] = int(kwargs["max_runs"])
-    except:
-        print("max_runs requires an int")
-        # probably not the right thing but just pass the default value for now
-        kwargs["max_runs"] = DEFAULTVALUES["experiment"]["max_runs"]
+    if "max_runs" in kwargs.keys():
+        try:
+            kwargs["max_runs"] = int(kwargs["max_runs"])
+        except:
+            print("max_runs requires an int, got {}{".format(kwargs["max_runs"]))
+            # revert to whatever the default value is
+            del kwargs["max_runs"]
+
     db = CandleDB(core="experiment")
     db.add(**kwargs)
-    
-#==============================================================================
-# # FOR REFERENCE
-# def experiment_insert(experiment_id,
-#                       benchmark_id  = "unknown",
-#                       dataset_id    = "unknown",
-#                       experiment_title = "untitled",
-#                       description = "_blank",
-#                       optimization_package_name = "unknown",
-#                       optimization_package_version = "unknown",
-#                       objective_function = "unknown",
-#                       search_space = "unknown",
-#                       search_strategy = "unknown",
-#                       max_runs = "unknown",
-#                       status = None,
-#                       start_time = None,
-#                       end_time = None,
-#                       system_description = "unknown",
-#                       keys = None):
-#     set_url("experiment")
-#     D = {
-#             "experiment_id": experiment_id,
-#             "benchmark_id": benchmark_id,
-#             "experiment_title": experiment_title
-#         }
-#     if keys != None: D.update(kv2dict(keys))
-# 
-#     solr.add([ D ])
-#==============================================================================
 
 def params2string(N1, NE):
     return "N1=%i,NE=%i" % (N1, NE)
