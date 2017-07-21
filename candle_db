@@ -20,6 +20,7 @@ UNK = "unknown"
 # default values to be used with each allowed core
 DEFAULTVALUES = { 
     "run" : dict(
+        run_id = None,
         parameters = "",
         benchmark_id  = UNK,
         dataset_id    = UNK,
@@ -39,6 +40,7 @@ DEFAULTVALUES = {
         model_result_files = None
     ),
     "experiment" : dict(
+        run_id = None,
         experiment_id = None,
         benchmark_id  = UNK,
         dataset_id    = UNK,
@@ -49,7 +51,7 @@ DEFAULTVALUES = {
         objective_function = UNK,
         search_space = UNK,
         search_strategy = UNK,
-        max_runs = UNK,
+        max_runs = 1000000,
         status = None,
         start_time = None,
         end_time = None,
@@ -90,10 +92,51 @@ class CandleDB:
         else:
             print("Solr delete: must specify either id or q")
     
+
 #==============================================================================
-# NOT SURE IF THIS WAS EVER USED
+# Keyword arguments in Python:
+# def f(**kwargs):
+#     # kwargs is a dictionary
+# Calling f(a=1, b=2, c=3) is equivalent to:
+# D = {"a":1, "b":2, "c":3}
+# f(**D)
+# D can be accessed within f as kwargs
 #==============================================================================
+
+def update_run(**kwargs):
+    assert kwargs["run_id"] is not None, "run_id is required"
+    assert kwargs["parameters"], "parameters is required"
+    
+    # split parameters on "," into strings of ","-separated values
+    # e.g. ["N1=1", "NE=6"] 
+    kwargs["parameters"] = kwargs["parameters"].split(",")
+    
+    # TODO: numerous fields are defined as float in the schema
+    # test and enforce this somehow, or solr will throw an error
+    
+    db = CandleDB(core="run")
+    db.add(**kwargs)
+
+def experiment_insert(**kwargs):
+    assert kwargs["experiment_id"] is not None, "experiment_id is required!"
+    
+    if "keys" in kwargs.keys():
+        keys = kwargs["keys"]
+        if keys is not None:
+            kwargs.update(kv2dict(keys))
+        del kwargs["keys"]
+    # according to the schema max_runs is an int
+    try:
+        kwargs["max_runs"] = int(kwargs["max_runs"])
+    except:
+        print("max_runs requires an int")
+        # probably not the right thing but just pass the default value for now
+        kwargs["max_runs"] = DEFAULTVALUES["experiment"]["max_runs"]
+    db = CandleDB(core="experiment")
+    db.add(**kwargs)
+    
 #==============================================================================
+# # FOR REFERENCE
 # def experiment_insert(experiment_id,
 #                       benchmark_id  = "unknown",
 #                       dataset_id    = "unknown",
@@ -119,11 +162,11 @@ class CandleDB:
 #     if keys != None: D.update(kv2dict(keys))
 # 
 #     solr.add([ D ])
-# 
-# def params2string(N1, NE):
-#     return "N1=%i,NE=%i" % (N1, NE)
-# 
 #==============================================================================
+
+def params2string(N1, NE):
+    return "N1=%i,NE=%i" % (N1, NE)
+
 def kv2dict(L):
     """ Convert list L of [ K=V... ] to dict { K:V ... } """
     result = {}
