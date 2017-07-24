@@ -61,6 +61,12 @@ DEFAULTVALUES = {
     )
 }
 
+# TODO: find a better mechanism than a global variable to embed into CandleDB
+    
+def abort(msg):
+    print("candle_db: " + msg)
+    sys.exit(1)
+
 SCHEMA_FLOATFIELDS = { 
     "run" : set(("training_accuracy", "training_loss",
                  "validation_accuracy", "validation_loss")) , 
@@ -126,7 +132,7 @@ class CandleDB:
             self.solr.delete(q=query)
         else:
             print("Solr delete: must specify either id or q")
-            
+
     def _validate_fields(self, kwargs):
         """Enforce validity of inputs according to schema.
         
@@ -149,11 +155,6 @@ class CandleDB:
                 # remove the offending field from the update
                 del kwargs[intf]
         return kwargs
-                
-def abort(msg):
-    print("candle_db: " + msg)
-    sys.exit(1)
-
 
 def update_run(**kwargs):
     assert kwargs["run_id"] is not None, "run_id is required"
@@ -163,6 +164,18 @@ def update_run(**kwargs):
     # split parameters on "," into strings of ","-separated values
     # e.g. ["N1=1", "NE=6"] 
     kwargs["parameters"] = kwargs["parameters"].split(",")
+
+    # enforce float values, per schema.xml for run
+    float_fields = set(("training_accuracy", "training_loss",
+        "validation_accuracy", "validation_loss"))
+    
+    for ff in float_fields.intersection(set(kwargs.keys())):
+        try:
+            kwargs[ff] = float(kwargs[ff])
+        except:
+            print("{} requires a float".format(ff))
+            # remove the offending field from the update
+            del kwargs[ff]
     
     db = CandleDB(core="run")
     db.add(**kwargs)
@@ -179,6 +192,15 @@ def experiment_insert(**kwargs):
         if keys is not None:
             kwargs.update(kv2dict(keys))
         del kwargs["keys"]
+
+    # according to the schema max_runs is an int
+    if "max_runs" in kwargs.keys():
+        try:
+            kwargs["max_runs"] = int(kwargs["max_runs"])
+        except:
+            print("max_runs requires an int, got {}{".format(kwargs["max_runs"]))
+            # revert to whatever the default value is
+            del kwargs["max_runs"]
 
     db = CandleDB(core="experiment")
     db.add(**kwargs)
