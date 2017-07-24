@@ -7,7 +7,7 @@ from __future__ import print_function
 import argparse
 
 import pysolr
-import copy
+#import copy
 
 # Currently the only way to modify these is to edit them here
 HOSTPORT = "localhost:8983"
@@ -60,40 +60,29 @@ DEFAULTVALUES = {
         keys = None                
     )
 }
+
 # TODO: find a better mechanism than a global variable to embed into CandleDB
     
 def abort(msg):
     print("candle_db: " + msg)
     sys.exit(1)
 
-class CandleDB:
-    """Encapsulate communication with Solr"""
-    url_template = "http://%s/solr/%s"
-    def __init__(self, core, hostport=HOSTPORT, timeout=10):
-        """Setup a Solr instance. The timeout is optional."""
-        if core not in DEFAULTVALUES.keys():
-            abort("unknown core name: %s", core)
-        self.core = core
-        self.keyvalues = copy.deepcopy(DEFAULTVALUES[core])
-        core_url = CandleDB.url_template % (hostport, core)
-        self.solr = pysolr.Solr(core_url, timeout=timeout)
-        
-    def add(self, **kwargs):
-        args = copy.deepcopy(self.keyvalues)
-        args.update(kwargs)
-        print("Arguments:  {}".format(args))
-        self.solr.add([args])
-        
-    def delete(self, query="*:*", id_=None):
-        """solr uses id which is reserved in Python, hence id_"""
-        if id_:
-            # TODO: probably need to enforce str or list of string...
-            self.solr.delete(id=id_)
-        elif query is not None:
-            self.solr.delete(q=query)
-        else:
-            print("Solr delete: must specify either id or q")
-    
+SCHEMA_FLOATFIELDS = { 
+    "run" : set(("training_accuracy", "training_loss",
+                 "validation_accuracy", "validation_loss")) , 
+    "experiment" : set()
+}
+  
+SCHEMA_INTFIELDS = { 
+    "run" : set() , 
+    "experiment" : set(("max_runs", ))
+}  
+
+#==============================================================================
+# TODO: find a better mechanism than a global variable to embed into CandleDB
+#==============================================================================
+
+
 #==============================================================================
 # # Keyword arguments in Python:
 #
@@ -109,10 +98,69 @@ class CandleDB:
 # # D can be accessed within the body of f as kwargs
 #==============================================================================
 
+class CandleDB:
+    """Encapsulate communication with Solr"""
+    url_template = "http://%s/solr/%s"
+    def __init__(self, core, hostport=HOSTPORT, timeout=10):
+        """Setup a Solr instance. The timeout is optional."""
+        
+        if core not in DEFAULTVALUES.keys():
+            abort("unknown core name: %s", core)
+            
+        self.core = core
+        #self.keyvalues = DEFAULTVALUES[core].copy()
+        #self.floatfields = SCHEMA_FLOATFIELDS[core]
+        #self.intfields = SCHEMA_INTFIELDS[core]
+        
+        core_url = CandleDB.url_template % (hostport, core)
+        self.solr = pysolr.Solr(core_url, timeout=timeout)
+        
+    def add(self, **kwargs):
+        """Add or update record in solr"""
+        args = DEFAULTVALUES[self.core].copy()
+        kwargs = self._validate_fields(kwargs)
+        args.update(kwargs)
+        print("Arguments:  {}".format(args))
+        self.solr.add([args])
+        
+    def delete(self, query="*:*", id_=None):
+        """solr uses id which is reserved in Python, hence id_"""
+        if id_:
+            # TODO: probably need to enforce str or list of string...
+            self.solr.delete(id=id_)
+        elif query is not None:
+            self.solr.delete(q=query)
+        else:
+            print("Solr delete: must specify either id or q")
+
+    def _validate_fields(self, kwargs):
+        """Enforce validity of inputs according to schema.
+        
+        Invalid values will be replaced by defaults."""
+        
+        update_set = set(kwargs.keys())
+        
+        for ff in SCHEMA_FLOATFIELDS[self.core].intersection(update_set):
+            try:
+                kwargs[ff] = float(kwargs[ff])
+            except:
+                print("{} requires a float".format(ff))
+                # remove the offending field from the update
+                del kwargs[ff]
+        for intf in SCHEMA_INTFIELDS[self.core].intersection(update_set):
+            try:
+                kwargs[intf] = int(kwargs[intf])
+            except:
+                print("{} requires an integer".format(intf))
+                # remove the offending field from the update
+                del kwargs[intf]
+        return kwargs
+
 def update_run(**kwargs):
     assert kwargs["run_id"] is not None, "run_id is required"
     assert kwargs["parameters"], "parameters is required"
     
+    # Special handling for parameters
     # split parameters on "," into strings of ","-separated values
     # e.g. ["N1=1", "NE=6"] 
     kwargs["parameters"] = kwargs["parameters"].split(",")
@@ -135,11 +183,16 @@ def update_run(**kwargs):
 def experiment_insert(**kwargs):
     assert kwargs["experiment_id"] is not None, "experiment_id is required!"
     
+    # Special handling for keys:
+    # Expecting a list of "K=V" which can be unpacked into a dictionary
+    # Values for K should be recognized by the schema or solr will object
+    
     if "keys" in kwargs.keys():
         keys = kwargs["keys"]
         if keys is not None:
             kwargs.update(kv2dict(keys))
         del kwargs["keys"]
+
     # according to the schema max_runs is an int
     if "max_runs" in kwargs.keys():
         try:
