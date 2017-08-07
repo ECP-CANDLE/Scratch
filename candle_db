@@ -5,21 +5,28 @@
 from __future__ import print_function
 
 import argparse
-
 import pysolr
-#import copy
+
+import logging
+
+# Change the level to logging.INFO for regular use, logging.DEBUG for testing
+# Add file=candle_db.log to log to a file
+logging.basicConfig(level=logging.WARNING)
 
 # Currently the only way to modify these is to edit them here
+# solr listens on port 8983 by default
 HOSTPORT = "localhost:8983"
 TIMEOUT = 10
 
-# DEFAULTVALUES: keys are the allowed cores in solr
+# =============================================================================
+# DEFAULT_VALUES: keys are the allowed cores in solr
 # each key indexes a dictionary of default values for that core
 # must match each core's schema.xml file; must edit if schema changes
+# =============================================================================
 
 UNK = "unknown"
 # default values to be used with each allowed core
-DEFAULTVALUES = { 
+DEFAULT_VALUES = { 
     "run" : dict(
         run_id = None,
         parameters = "",
@@ -61,26 +68,31 @@ DEFAULTVALUES = {
     )
 }
 
-# TODO: find a better mechanism than a global variable to embed into CandleDB
-    
-def abort(msg):
-    print("candle_db: " + msg)
-    sys.exit(1)
-
-SCHEMA_FLOATFIELDS = { 
+  
+# =============================================================================
+# For each core, gives the set of fields which the schema defines as float
+# =============================================================================
+SCHEMA_FLOAT_FIELDS = { 
     "run" : set(("training_accuracy", "training_loss",
                  "validation_accuracy", "validation_loss")) , 
     "experiment" : set()
 }
   
-SCHEMA_INTFIELDS = { 
+# =============================================================================
+# For each core, gives the set of fields which the schema defines as int
+# =============================================================================
+SCHEMA_INT_FIELDS = { 
     "run" : set() , 
     "experiment" : set(("max_runs", ))
-}  
+}
 
 #==============================================================================
-# TODO: find a better mechanism than a global variable to embed into CandleDB
-#==============================================================================
+# TODO: find a better mechanism than global variables to embed into CandleDB
+#==============================================================================  
+
+def abort(msg):
+    logging.critical("candle_db: " + msg)
+    sys.exit(1)
 
 
 #==============================================================================
@@ -104,34 +116,36 @@ class CandleDB:
     def __init__(self, core, hostport=HOSTPORT, timeout=10):
         """Setup a Solr instance. The timeout is optional."""
         
-        if core not in DEFAULTVALUES.keys():
+        if core not in DEFAULT_VALUES.keys():
             abort("unknown core name: %s", core)
             
         self.core = core
-        #self.keyvalues = DEFAULTVALUES[core].copy()
-        #self.floatfields = SCHEMA_FLOATFIELDS[core]
-        #self.intfields = SCHEMA_INTFIELDS[core]
         
         core_url = CandleDB.url_template % (hostport, core)
+        logging.debug("CandleDB: {}".format(core_url))
+        
         self.solr = pysolr.Solr(core_url, timeout=timeout)
         
     def add(self, **kwargs):
         """Add or update record in solr"""
-        args = DEFAULTVALUES[self.core].copy()
+        args = DEFAULT_VALUES[self.core].copy()
         kwargs = self._validate_fields(kwargs)
         args.update(kwargs)
-        print("Arguments:  {}".format(args))
+        logging.debug("Arguments:  {}".format(args))
         self.solr.add([args])
         
     def delete(self, query="*:*", id_=None):
-        """solr uses id which is reserved in Python, hence id_"""
+        """delete records from solr, defaults to all records ("*:*")
+        
+        records can be specified by query, or by unique key
+        (solr uses id which is reserved in Python, hence id_ is used here)"""
         if id_:
             # TODO: probably need to enforce str or list of string...
             self.solr.delete(id=id_)
         elif query is not None:
             self.solr.delete(q=query)
         else:
-            print("Solr delete: must specify either id or q")
+            logging.warning("Solr delete: must specify either id or q")
 
     def _validate_fields(self, kwargs):
         """Enforce validity of inputs according to schema.
@@ -140,20 +154,20 @@ class CandleDB:
         
         update_set = set(kwargs.keys())
         
-        for ff in SCHEMA_FLOATFIELDS[self.core].intersection(update_set):
+        for field in SCHEMA_FLOAT_FIELDS[self.core].intersection(update_set):
             try:
-                kwargs[ff] = float(kwargs[ff])
+                kwargs[field] = float(kwargs[field])
             except:
-                print("{} requires a float".format(ff))
+                logging.debug("{} requires a float".format(field))
                 # remove the offending field from the update
-                del kwargs[ff]
-        for intf in SCHEMA_INTFIELDS[self.core].intersection(update_set):
+                del kwargs[field]
+        for field in SCHEMA_INT_FIELDS[self.core].intersection(update_set):
             try:
-                kwargs[intf] = int(kwargs[intf])
+                kwargs[field] = int(kwargs[field])
             except:
-                print("{} requires an integer".format(intf))
+                logging.debug("{} requires an integer".format(field))
                 # remove the offending field from the update
-                del kwargs[intf]
+                del kwargs[field]
         return kwargs
 
 def update_run(**kwargs):
@@ -163,19 +177,24 @@ def update_run(**kwargs):
     # Special handling for parameters
     # split parameters on "," into strings of ","-separated values
     # e.g. ["N1=1", "NE=6"] 
+    # the keyword arguments dictionary will be updated with this list
     kwargs["parameters"] = kwargs["parameters"].split(",")
 
-    # enforce float values, per schema.xml for run
-    float_fields = set(("training_accuracy", "training_loss",
-        "validation_accuracy", "validation_loss"))
-    
-    for ff in float_fields.intersection(set(kwargs.keys())):
-        try:
-            kwargs[ff] = float(kwargs[ff])
-        except:
-            print("{} requires a float".format(ff))
-            # remove the offending field from the update
-            del kwargs[ff]
+# =============================================================================
+#     # enforce float values, per schema.xml for run
+#     float_fields = set(("training_accuracy", "training_loss",
+#         "validation_accuracy", "validation_loss"))
+#     
+#     for ff in float_fields.intersection(set(kwargs.keys())):
+#         try:
+#             kwargs[ff] = float(kwargs[ff])
+#         except:
+#             msg = "{} requires a float".format(ff)
+#             logging.debug(msg)
+#             print(msg)
+#             # remove the offending field from the update
+#             del kwargs[ff]
+# =============================================================================
     
     db = CandleDB(core="run")
     db.add(**kwargs)
@@ -193,15 +212,17 @@ def experiment_insert(**kwargs):
             kwargs.update(kv2dict(keys))
         del kwargs["keys"]
 
-    # according to the schema max_runs is an int
-    if "max_runs" in kwargs.keys():
-        try:
-            kwargs["max_runs"] = int(kwargs["max_runs"])
-        except:
-            print("max_runs requires an int, got {}{".format(kwargs["max_runs"]))
-            # revert to whatever the default value is
-            del kwargs["max_runs"]
-
+# =============================================================================
+#     # according to the schema max_runs is an int
+#     if "max_runs" in kwargs.keys():
+#         try:
+#             kwargs["max_runs"] = int(kwargs["max_runs"])
+#         except:
+#             logging.warning("max_runs requires an int, got {}{".format(kwargs["max_runs"]))
+#             # revert to whatever the default value is
+#             del kwargs["max_runs"]
+# 
+# =============================================================================
     db = CandleDB(core="experiment")
     db.add(**kwargs)
 
@@ -210,9 +231,9 @@ def params2string(N1, NE):
 
 def kv2dict(L):
     """ Convert list L of [ K=V... ] to dict { K:V ... } """
+    logging.debug("kv2dict called with:\n".format(L))
     result = {}
     for kv in L:
-        print(kv)
         tokens = kv.split('=')
         key = tokens[0]
         if len(tokens) == 1:
@@ -296,6 +317,7 @@ def ls_run(args, results):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
+        logging.critical("Requires subcommand arguments...")
         print("Requires: subcommand arguments...")
         sys.exit(1)
 
