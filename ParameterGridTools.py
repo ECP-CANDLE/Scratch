@@ -62,6 +62,26 @@ class ParamDictionaryGridIterator(GridIterator):
         for params in super(ParamDictionaryGridIterator, self).__iter__():
             yield { k:p for k, p in zip(self.keys, params) }
             
+    def __getitem__(self, index):
+        """ Paramater dictionary may be constructed from its sequence number if enumerated
+            
+            pgi = ParamDictionaryGridIterator(a=[0,1],b=[0,1])
+            for i, param_dict in enumerate(pgi):
+                print(param_dict, " = ", pgi[i])
+                
+            {'a': 0, 'b': 0}  =  {'b': 0, 'a': 0}
+            {'a': 0, 'b': 1}  =  {'b': 1, 'a': 0}
+            {'a': 1, 'b': 0}  =  {'b': 0, 'a': 1}
+            {'a': 1, 'b': 1}  =  {'b': 1, 'a': 1}           
+        """
+        param_dict = {}
+        q = index
+        for key, arg in zip(reversed(self.keys), reversed(self.args)):
+            m = len(arg)
+            q, r = divmod(q, m)
+            param_dict[key] = arg[r]
+        return param_dict
+            
 class ParamDictionaryGridEnumerator(ParamDictionaryGridIterator):
     """Generates parameter dictionaries for each point in the Cartesian product,
        sequentially numbered by run_id beginning with start_number"""
