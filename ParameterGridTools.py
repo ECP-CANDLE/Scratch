@@ -6,6 +6,8 @@ Created on Tue Aug 15 08:56:53 2017
 @author: johnbauer
 """
 
+import random
+
 class GridIterator(object):
     """ Accepts an arbitrary number of iterables, iterates through the
         Cartesian product of their values in lexicographic order.  For example:
@@ -32,6 +34,28 @@ class GridIterator(object):
         else:
             for param in self.args[0]:
                 yield [param]
+                
+    def __getitem__(self, index):
+        params = []
+        q = index
+        for arg in reversed(self.args):
+            m = len(arg)
+            q, r = divmod(q, m)
+            params.append(arg[r])
+        return params
+    
+    def sample_iterator(self, k):
+        """ Draw a sample of size k from the grid.  If k exceeds the number
+            of points in the grid, returns all the points in random order.
+        """
+        grid_size = 1
+        for arg in self.args:
+            grid_size *= len(arg)
+        k = min(k, grid_size)
+        sample = random.sample(range(grid_size), k)
+        for i in sample:
+            yield self[i]
+        
  
 class ParamDictionaryGridIterator(GridIterator):
     """ Iterates through the Cartesian product of values listed for each parameter
@@ -80,18 +104,26 @@ class ParamDictionaryGridIterator(GridIterator):
             m = len(arg)
             q, r = divmod(q, m)
             param_dict[key] = arg[r]
-        return param_dict
+        return param_dict            
             
 class ParamDictionaryGridEnumerator(ParamDictionaryGridIterator):
     """Generates parameter dictionaries for each point in the Cartesian product,
        sequentially numbered by run_id beginning with start_number"""
     def __init__(self, run_id="run_id", start_number=0, **kwargs):
         self.run_id = run_id
-        self.start_number = start_number
+        self.id_number = start_number
         super(ParamDictionaryGridEnumerator, self).__init__(**kwargs)
+        
+    def _get_id(self, param_dict):
+        # Utility method to ensure unique run_id
+        param_dict[self.run_id] = self.id_number            
+        self.id_number += 1
+        return param_dict
+    
     def __iter__(self):
-        run_id = self.start_number
         for param_dict in super(ParamDictionaryGridEnumerator,self).__iter__():
-            param_dict[self.run_id] = run_id            
-            run_id += 1
-            yield param_dict
+            yield self._get_id(param_dict)
+            
+    def sample_iterator(self, k):
+        for param_dict in super(ParamDictionaryGridEnumerator, self).sample_iterator(k):
+            yield self._get_id(param_dict)
