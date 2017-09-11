@@ -10,12 +10,20 @@ import pysolr
 
 import logging
 
+<<<<<<< HEAD
 # Change the level to logging.INFO for more verbosity, logging.DEBUG for testing
+=======
+# Change the level to logging.INFO for regular use, logging.DEBUG for testing
+# Add file=candle_db.log to log to a file
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
 logging.basicConfig(level=logging.WARNING)
 
 # Currently the only way to modify these is to edit them here
 # solr listens on port 8983 by default
+<<<<<<< HEAD
 # Return up to 1B results (default is 10):
+=======
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
 HOSTPORT = "localhost:8983"
 TIMEOUT = 10
 MAX_ROWS = 1000*1000*1000
@@ -28,7 +36,11 @@ MAX_ROWS = 1000*1000*1000
 
 UNK = "unknown"
 # default values to be used with each allowed core
+<<<<<<< HEAD
 DEFAULT_VALUES = {
+=======
+DEFAULT_VALUES = { 
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
     "run" : dict(
         run_id = None,
         parameters = "",
@@ -70,27 +82,52 @@ DEFAULT_VALUES = {
     )
 }
 
+<<<<<<< HEAD
 
 # =============================================================================
 # For each core, gives the set of fields which the schema defines as float
 # =============================================================================
 SCHEMA_FLOAT_FIELDS = {
+=======
+  
+# =============================================================================
+# For each core, gives the set of fields which the schema defines as float
+# =============================================================================
+SCHEMA_FLOAT_FIELDS = { 
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
     "run" : set(("training_accuracy", "training_loss",
                  "validation_accuracy", "validation_loss")) ,
     "experiment" : set()
 }
+<<<<<<< HEAD
 
 # =============================================================================
 # For each core, gives the set of fields which the schema defines as int
 # =============================================================================
 SCHEMA_INT_FIELDS = {
     "run" : set() ,
+=======
+  
+# =============================================================================
+# For each core, gives the set of fields which the schema defines as int
+# =============================================================================
+SCHEMA_INT_FIELDS = { 
+    "run" : set() , 
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
     "experiment" : set(("max_runs", ))
 }
 
 #==============================================================================
 # TODO: find a better mechanism than global variables to embed into CandleDB
+<<<<<<< HEAD
 #==============================================================================
+=======
+#==============================================================================  
+
+def abort(msg):
+    logging.critical("candle_db: " + msg)
+    sys.exit(1)
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
 
 def abort(msg):
     logging.critical("candle_db: " + msg)
@@ -117,6 +154,7 @@ class CandleDB:
     url_template = "http://%s/solr/%s"
     def __init__(self, core, hostport=HOSTPORT, timeout=TIMEOUT, max_rows=MAX_ROWS):
         """Setup a Solr instance. The timeout is optional."""
+<<<<<<< HEAD
 
         if core not in DEFAULT_VALUES.keys():
             abort("unknown core name: %s" % core)
@@ -128,6 +166,17 @@ class CandleDB:
 
         self.max_rows = max_rows
 
+=======
+        
+        if core not in DEFAULT_VALUES.keys():
+            abort("unknown core name: %s", core)
+            
+        self.core = core
+        
+        core_url = CandleDB.url_template % (hostport, core)
+        logging.debug("CandleDB: {}".format(core_url))
+        
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
         self.solr = pysolr.Solr(core_url, timeout=timeout)
 
     def add(self, **kwargs):
@@ -140,7 +189,11 @@ class CandleDB:
 
     def delete(self, query="*:*", id_=None):
         """delete records from solr, defaults to all records ("*:*")
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
         records can be specified by query, or by unique key
         (solr uses id which is reserved in Python, hence id_ is used here)"""
         if id_:
@@ -157,7 +210,11 @@ class CandleDB:
         Invalid values will be replaced by defaults."""
 
         update_set = set(kwargs.keys())
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
         for field in SCHEMA_FLOAT_FIELDS[self.core].intersection(update_set):
             try:
                 kwargs[field] = float(kwargs[field])
@@ -185,7 +242,11 @@ def update_run(**kwargs):
 
     # Special handling for parameters
     # split parameters on "," into strings of ","-separated values
+<<<<<<< HEAD
     # e.g. ["N1=1", "NE=6"]
+=======
+    # e.g. ["N1=1", "NE=6"] 
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
     # the keyword arguments dictionary will be updated with this list
     kwargs["parameters"] = kwargs["parameters"].split(",")
 
@@ -193,7 +254,11 @@ def update_run(**kwargs):
 #     # enforce float values, per schema.xml for run
 #     float_fields = set(("training_accuracy", "training_loss",
 #         "validation_accuracy", "validation_loss"))
+<<<<<<< HEAD
 #
+=======
+#     
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
 #     for ff in float_fields.intersection(set(kwargs.keys())):
 #         try:
 #             kwargs[ff] = float(kwargs[ff])
@@ -204,7 +269,11 @@ def update_run(**kwargs):
 #             # remove the offending field from the update
 #             del kwargs[ff]
 # =============================================================================
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
     db = CandleDB(core="run")
     db.add(**kwargs)
 
@@ -230,7 +299,11 @@ def experiment_insert(**kwargs):
 #             logging.warning("max_runs requires an int, got {}{".format(kwargs["max_runs"]))
 #             # revert to whatever the default value is
 #             del kwargs["max_runs"]
+<<<<<<< HEAD
 #
+=======
+# 
+>>>>>>> 7fb7b96fb02d909b121bb9f65f597252d5435eb8
 # =============================================================================
     db = CandleDB(core="experiment")
     db.add(**kwargs)
