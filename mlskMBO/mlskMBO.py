@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+from __future__ import print_function
 """
 Created on Thu Sep  7 11:10:38 2017
 
@@ -13,8 +15,6 @@ Created on Thu Aug 24 10:57:21 2017
 
 @author: johnbauer
 """
-from __future__ import absolute_import
-import sys
 
 import os
 from collections import defaultdict
@@ -97,6 +97,19 @@ ps.add(prs.DiscreteParameter("conv", conv))
 # ... retrieve the result from earlier runs
 # =============================================================================
 
+
+
+# =============================================================================
+# Assuming json log files from a previous run are available
+# in output_subdirectory, uncomment the code below, and comment out the 
+# Shortcut using read_csv
+# =============================================================================
+#nt3_data = nt3d.NT3RunData(output_dir=output_dir,
+#                           subdirectory=output_subdirectory)
+#nt3_data.add_all()
+#data = nt3_data.dataframe
+
+
 # coerce data into correct types in dataframe
 float64 = 'float64'
 int64 =  'int64'
@@ -109,14 +122,9 @@ pdtypes = {'batch_size': int64,
            'training_loss' : float64,
            'validation_loss' : float64
            }
-
-
-
-#nt3_data = nt3d.NT3RunData(output_dir=output_dir,
-#                           subdirectory=output_subdirectory)
-#nt3_data.add_all()
-#data = nt3_data.dataframe
-
+# =============================================================================
+# Shortcut, using csv file saved from previous run
+# =============================================================================
 data = pd.read_csv("nt3_initial_data.csv", dtype=pdtypes)
 
 data = data[data.validation_loss < MAX_LOSS]
@@ -131,6 +139,7 @@ assert all(x in data.columns for x in X_col), "invalid column"
 # preliminary input for modelling
 X = data[X_col]
 y = data[TARGET]
+
 
 # =============================================================================
 # rfr = RandomForestRegressor(oob_score=True)
