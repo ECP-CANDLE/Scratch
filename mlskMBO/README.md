@@ -5,4 +5,6 @@ Short term goal: replace Random Forest Regression with Gaussian Process Regressi
 Long term: functional equivalence to mlrMBO.
 ParameterSet object modelled on R version, sampling, Lower Confidence Bound, and focus are implemented.
 
+Creates Python dictionaries for NT3 and optionally runs them in Keras.
+
 Any predictor in scikit-learn for which standard errors are available should be fair game.
