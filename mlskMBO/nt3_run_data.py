@@ -19,9 +19,11 @@ RUN_FILE_PATTERN = "run.{}.json"
 # =============================================================================
 # edit these for testing on a local machine
 # =============================================================================
-OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/NT3/save"
-SUBDIRECTORY = 'experiment_0'
+NT3_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/NT3/save"
+NT3_SUBDIRECTORY = 'experiment_0'
 
+P3B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot3/P3B1/save"
+P3B1_SUBDIRECTORY = ''
 
 class RunData(object):
     """Scrape data from run.###.json files"""
@@ -292,8 +294,8 @@ class JSONLog:
 
 if __name__ == "__main__":
     
-    output_dir = OUTPUT_DIR
-    output_subdirectory = SUBDIRECTORY
+    output_dir = NT3_OUTPUT_DIR
+    output_subdirectory = NT3_SUBDIRECTORY
     
     #output_dir = os.path.join(NT3RunData.OUTPUT_DIR, output_subdirectory)
     #output_dir = "/Users/johnbauer/Benchmarks/Pilot1/NT3"
@@ -315,8 +317,8 @@ if __name__ == "__main__":
     print(data.dtypes)
 
 
-    output_dir = "/Users/johnbauer/Benchmarks/Pilot3/P3B1/save"
-    output_subdirectory = ''
+    output_dir = P3B1_OUTPUT_DIR
+    output_subdirectory = P3B1_SUBDIRECTORY
     
     p3b1_data = P3B1RunData(output_dir=output_dir, subdirectory=output_subdirectory)
 
