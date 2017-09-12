@@ -8,15 +8,30 @@ Created on Thu Sep  7 11:10:38 2017
 @author: johnbauer
 """
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Aug 24 10:57:21 2017
-
-@author: johnbauer
-"""
+# =============================================================================
+# Assumes mlskMBO is located in Scratch/mlskMBO, at the same level as Benchmarks
+# =============================================================================
 
 import os
+import sys
+
+
+def add_path(*args):
+    """utility function for joining paths"""
+    lib_path = os.path.abspath(os.path.join(*args))
+    sys.path.append(lib_path)
+    
+file_path = os.path.dirname(os.path.realpath(__file__))
+
+paths =  [['..', '..', 'Benchmarks', 'common'],
+          ['..', '..', 'Benchmarks', 'Pilot1', 'common'],
+          [ '..', '..', 'Benchmarks', 'Pilot1', 'NT3']]
+
+for path in paths:
+    p = [file_path]
+    p.extend(path)
+    add_path(*p)
+
 from collections import defaultdict
 
 import nt3_run_data as nt3d
@@ -27,9 +42,8 @@ import parameter_set as prs
 import pandas as pd
 
 from sklearn.ensemble import RandomForestRegressor
-
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ParameterGrid, ParameterSampler
 
@@ -37,10 +51,18 @@ import scipy as sp
 from scipy.stats.distributions import expon
 
 # =============================================================================
+# data are correctly reshaped but warning is present any, so suppress them all
+# =============================================================================
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
+
+
+
+# =============================================================================
 # CONFIGURATION stuff done here for now
 # =============================================================================
 
-file_path = os.path.dirname(os.path.realpath(__file__))
+
 config_file = os.path.join(file_path, 'nt3_default_model.txt')
 output_dir = os.path.join(file_path, 'save') 
 output_subdirectory = 'experiment_0' 
@@ -97,17 +119,9 @@ ps.add(prs.DiscreteParameter("conv", conv))
 # ... retrieve the result from earlier runs
 # =============================================================================
 
-
-
 # =============================================================================
-# Assuming json log files from a previous run are available
-# in output_subdirectory, uncomment the code below, and comment out the 
-# Shortcut using read_csv
+# TODO: move this to nt3_run_data
 # =============================================================================
-#nt3_data = nt3d.NT3RunData(output_dir=output_dir,
-#                           subdirectory=output_subdirectory)
-#nt3_data.add_all()
-#data = nt3_data.dataframe
 
 
 # coerce data into correct types in dataframe
@@ -122,12 +136,30 @@ pdtypes = {'batch_size': int64,
            'training_loss' : float64,
            'validation_loss' : float64
            }
-# =============================================================================
-# Shortcut, using csv file saved from previous run
-# =============================================================================
-data = pd.read_csv("nt3_initial_data.csv", dtype=pdtypes)
 
-data = data[data.validation_loss < MAX_LOSS]
+def get_nt3_data(output_dir=output_dir,
+             subdirectory=output_subdirectory,
+             dtype=pdtypes,
+             from_csv=False):
+    """Assumes json log files from a previous run are available
+
+    If json logs are in output_subdirectory, call with from_csv=False
+    Otherwise it will read cached data from a previous run from a csv file
+    """
+
+    if from_csv:
+        data = pd.read_csv("nt3_initial_data.csv", dtype=dtype)
+    else:
+        nt3_data = nt3d.NT3RunData(output_dir=output_dir,
+                                   subdirectory=output_subdirectory)
+        nt3_data.add_all()
+        data = nt3_data.dataframe
+    
+    data = data[data.validation_loss < MAX_LOSS]
+    return data
+
+data = get_nt3_data(from_csv=True)
+
 #print(data.columns)
 
 # columns to use as predictors in the model
@@ -289,10 +321,12 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
 # For Random Forest Regression, evaluate on many points of a grid
 # =============================================================================
 # TODO: stop looking up index in original!  Does not generalize
+# give them unique ids by specifying a start value
+start_id = 5000
 for i, c in enumerate(candidate_LCB):
     d = dict(X.iloc[c])
     # give them unique run_id values in case they actually get used...
-    params = param_update(d, default_params, i+5000, output_subdirectory)
+    params = param_update(d, default_params, i+start_id, output_subdirectory)
     # TODO: translate categorical variables' parameters back to original names
     print("="*80)
     print("index: {:4d} loss: {}".format(c, y.iloc[c]))
@@ -363,14 +397,17 @@ for i in range(3):
             params = param_update(focus.draw(), default_params, output_subdirectory)
             run_params.append(params)
             
+            
+run_keras = False
 for params in run_params:
     print("*"*80)
     print("* Parameters: ")
     for k, v in params.items():
         print("{:25}{}".format(k, v))
     print("*"*80)
-    # finally do some work!
-    nt3b.run(params)
+    if run_keras:
+        # finally do some work!
+        nt3b.run(params)
 
 # =============================================================================
 # Now gather up the results from output_subdirectory and repeat
