@@ -62,6 +62,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # CONFIGURATION stuff done here for now
 # =============================================================================
 
+# if True, parameter dictionaries will be sent to nt3_baseline_keras2
+run_keras = False
 
 config_file = os.path.join(file_path, 'nt3_default_model.txt')
 output_dir = os.path.join(file_path, 'save') 
@@ -398,7 +400,6 @@ for i in range(3):
             run_params.append(params)
             
             
-run_keras = False
 for params in run_params:
     print("*"*80)
     print("* Parameters: ")
