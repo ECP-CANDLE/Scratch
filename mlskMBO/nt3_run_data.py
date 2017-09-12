@@ -5,53 +5,38 @@ Created on Thu Aug 31 15:49:27 2017
 
 @author: johnbauer
 """
-
 import pandas as pd
 import os
 import glob
 import json
 from collections import defaultdict, Counter
 
-# =============================================================================
-# Need to incorporate ParameterSet and default dictionary in order to
-# construct dictionaries from the values suggested by RFR or GPR...
-# also do sampling, need to add Naive Bayes, update probs etc.
-# inputs: need to start with a "schema" of sorts:
-# read in default value dictionary
-# =============================================================================
    
 # pick a file with .format(run_id),  or use  .format("*") with glob 
 RUN_FILE_PATTERN = "run.{}.json"
-OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/NT3/save"
 
-# for reference, here is param_dict.keys():
-PARAM_DICT_KEYS = ['data_url', 'train_data', 'test_data', 'model_name', 'conv',
-                   'dense', 'activation', 'out_act', 'loss', 'optimizer',
-                   'metrics', 'epochs', 'batch_size', 'learning_rate',
-                   'drop', 'classes', 'pool', 'save', 'run_id',
-                   'trainable_params', 'non_trainable_params', 'total_params',
-                   'training_loss', 'validation_loss']
-# these are the keys actually being retreived
-PARAM_KEYS = ['conv', 'dense', 'epochs', 'batch_size', 'learning_rate',
-              'drop', 'classes', 'pool', 'run_id',
-              'training_loss', 'validation_loss', 'runtime_hours']
-# coerce to the desired type
-PARAM_DTYPES = {'batch_size' : 'int64', 'classes' : 'int64', 'drop' : 'float64',
-                  'epochs' : 'int64', #'run_id' : 'int64',
-                  'learning_rate' : 'float64'}
-PARAM_CATEGORICAL = ['conv', 'dense'] #, 'pool']
-# TODO: conv, dense, pool are string representations of lists of integers, not yet being parsed   
-  
-class NT3RunData:
-    """Scrape NT3 data from run.###.json files"""
+
+# =============================================================================
+# edit these for testing on a local machine
+# =============================================================================
+NT3_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/NT3/save"
+NT3_SUBDIRECTORY = 'experiment_0'
+
+P3B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot3/P3B1/save"
+P3B1_SUBDIRECTORY = ''
+
+class RunData(object):
+    """Scrape data from run.###.json files"""
     def __init__(self,
-                 output_dir=OUTPUT_DIR, 
-                 subdirectory="",
-                 run_file_pattern=RUN_FILE_PATTERN,
-                 param_keys=PARAM_KEYS,
-                 pdtypes=PARAM_DTYPES,
-                 dummies=PARAM_CATEGORICAL):
+                 output_dir, 
+                 subdirectory,
+                 run_file_pattern,
+                 json_keys,
+                 param_keys,
+                 pdtypes,
+                 dummies):
         
+        self.json_keys = json_keys
         self.param_keys = param_keys # parameters to send to pandas dataframe
         self.run_file_path = os.path.join(output_dir, subdirectory, run_file_pattern)
         self.data = defaultdict(list)
@@ -61,8 +46,8 @@ class NT3RunData:
         self.dummies = dummies
         self.dummy_names = defaultdict(list)
         self.original_names = {}
-        self.new_names = {}
-        
+        self.new_names = {}    
+           
     def run_file(self, run_id):
         """run_id ="*" to get pattern for all, otherwise a single number"""
         return self.run_file_path.format(run_id)
@@ -79,6 +64,10 @@ class NT3RunData:
         """Accumulate a list of values for each parameter"""
         for key in self.param_keys:
             self.data[key].append(run_dict.get(key, None))
+
+    def add_file(self, filename):
+        param_dict = JSONLog(filename, self.json_keys).parse_file()
+        self.add(param_dict)
             
     def _get_dataframe(self):
         if self._df:
@@ -115,7 +104,7 @@ class NT3RunData:
             for name in rename.values():
                 assert name not in names, "Name conflict: {}".format(name)
             # n.b. original.keys() == rename.values() and vice-versa 
-            df.rename(columns=rename, inplace=True)
+            #df.rename(columns=rename, inplace=True)
             self.df = df
         return df
     
@@ -151,12 +140,98 @@ class NT3RunData:
                 renamed[key] = param_dict[key]
         return renamed
 
+class NT3RunData(RunData):
+    """Scrape NT3 data from run.###.json files"""
+    # these are the keys present in the JSON log/solr to be retrieved, 
+    # except 'parameters', which gets special treatment
+    JSON_KEYS = ['run_id', 'training_loss', 'validation_loss', 'runtime_hours']
+    # these are the keys actually being retreived as a dataframe
+    PARAM_KEYS = ['conv', 'dense', 'epochs', 'batch_size', 'learning_rate',
+                  'drop', 'classes', 'pool', 'run_id',
+                  'training_loss', 'validation_loss', 'runtime_hours']
+    # coerce to the correct type in the dataframe
+    PARAM_DTYPES = {'batch_size' : 'int64',
+                    'classes' : 'int64',
+                    'drop' : 'float64',
+                    'epochs' : 'int64',
+                    'learning_rate' : 'float64'
+                    }
+    # these will be dummy-coded
+    PARAM_CATEGORICAL = ['dense', 'conv']
+    
+    def __init__(self,
+                 output_dir=OUTPUT_DIR, 
+                 subdirectory="",
+                 run_file_pattern=RUN_FILE_PATTERN,
+                 json_keys=JSON_KEYS,
+                 param_keys=PARAM_KEYS,
+                 pdtypes=PARAM_DTYPES,
+                 dummies=PARAM_CATEGORICAL):
+        """output_dir/subdirectory gives the location of the json log files 
+        to be parsed.  
+        
+        Default values can be overridden, normally just call with directory"""
+        super(NT3RunData, self).__init__(
+                 output_dir=output_dir, 
+                 subdirectory=subdirectory,
+                 run_file_pattern=run_file_pattern,
+                 json_keys=json_keys,
+                 param_keys=param_keys,
+                 pdtypes=pdtypes,
+                 dummies=dummies)
+
+
+class P3B1RunData(RunData):
+    """Scrape P3B1 data from run.###.json files"""
+    # these are the keys present in the JSON log/solr to be retrieved, 
+    # except 'parameters', which gets special treatment
+    JSON_KEYS = ['run_id', 'training_loss', 'validation_loss', 'runtime_hours']
+    # these are the keys actually being retreived as a dataframe
+    PARAM_KEYS = ['epochs', 'batch_size', 'learning_rate',
+                  'dropout', 'shared_nnet_spec', 'ind_nnet_spec',
+                  'activation', 'optimizer',
+                  'run_id', 'training_loss', 'validation_loss', 'runtime_hours']
+    # coerce to the correct type in the dataframe
+    PARAM_DTYPES = {'batch_size' : 'int64',
+                    'dropout' : 'float64', 
+                    'epochs' : 'int64',
+                    'learning_rate' : 'float64'}
+    # these will be dummy-coded
+    PARAM_CATEGORICAL = ['shared_nnet_spec', 'ind_nnet_spec',
+                         'activation', 'optimizer']
+    
+    def __init__(self,
+                 output_dir=OUTPUT_DIR, 
+                 subdirectory="",
+                 run_file_pattern=RUN_FILE_PATTERN,
+                 json_keys=JSON_KEYS,
+                 param_keys=PARAM_KEYS,
+                 pdtypes=PARAM_DTYPES,
+                 dummies=PARAM_CATEGORICAL):
+        """output_dir/subdirectory gives the location of the json log files 
+        to be parsed.  
+        
+        Default values can be overridden, normally just call with directory"""
+        super(P3B1RunData, self).__init__(
+                 output_dir=output_dir, 
+                 subdirectory=subdirectory,
+                 run_file_pattern=run_file_pattern,
+                 json_keys=json_keys,
+                 param_keys=param_keys,
+                 pdtypes=pdtypes,
+                 dummies=dummies)
+        
 # TODO: figure out why parameters is not showing up in solr, but is in the log
+# for now open the file and extract json here, 
+# if parameters start to show up in solr rework this 
+# so the json.load happens outside, just pass in the json
 class JSONLog:
     """Utility class to mediated between JSON log file and parameter dictionary"""
-    def __init__(self, run_file, param_dict={}):
-        """run_file: typically run.###.json
-           param_dict: default values, typically empty"""
+    def __init__(self, run_file, keys=[], parameters="parameters"):
+        """run_file: log file name, typically 'run.#.json'
+           keys: to be retrieved from JSON files
+           parameters: typically 'parameters', expecting a list of strings
+           which receive special treatment, each gets parsed into {key:value}"""
         try:
             with open(run_file, "r") as f:
                 run_json = json.load(f)
@@ -168,10 +243,12 @@ class JSONLog:
         assert all(isinstance(d, dict) for d in run_json), "Expecting only dictionaries"
         
         self.json = run_json
-        self.param_dict = param_dict
+        self.param_dict = {}
+        self.keys = keys
+        self.parameters = parameters
 
     def get(self, key, cmd='set'):
-        """ Returns the last value found.
+        """ Returns the last value found in either JSON log file or solr.
         
             cmd: solr command, in ('add', 'set', None) """
         assert cmd in (None, 'add', 'set'), "Unknown solr command"
@@ -187,51 +264,44 @@ class JSONLog:
         return var
 
     def parse_file(self):
-        assert False, "Abstract method, must be overridden in subclass"
-        
-class NT3RunJSONLog(JSONLog):
-    def parse_file(self):        
-        params = self.get('parameters')
-        print("Parameters: ")
-        print(params)
-        # proably harmless to leave parameters alone...
-        # ... but if parameters contains a parameter named 'parameters' 
-        # it would not show up
-        del self.param_dict['parameters']
-        param_dict = self._parse_parameters(params)
-        self.param_dict.update(param_dict)        
-        print("Parameter dictionary: ")
-        print(param_dict)        
-        self.get('run_id')
-        self.get('training_loss') #, 'set')
-        self.get('validation_loss') #, 'set')
-        self.get('runtime_hours') #), 'set')
-        print("Full Parameter dictionary: ")
-        print(self.param_dict)          
+        """Get values for the requested keys, with special handling for 'parameters' """
+        if self.parameters:
+            params = self.get(self.parameters)
+            del self.param_dict[self.parameters]
+            self._parse_parameters(params)
+        for key in self.keys:
+            self.get(key)
         return self.param_dict
-    
+        
     # utility method 
     def _parse_parameters(self, params):
         """JSON 'parameters' holds a list of strings, each a ":"-separated pair"""
-        param_dict = {}
         for param in params:
             param = param.split(":")
             key = param[0]
             param = ":".join(param[1:]) # re-join e.g. ['ftp', '//ftp.mcs...']
             param = param.strip()
-            # TODO: parse out the lists, such as conv or dense or pool
-            param_dict[key] = param
-        return param_dict
+            # TODO: find a better way to handle the list/tuple issue
+            # bonus handling because dense, conv have values which may
+            # be (string representations of) lists, but elsewhere these
+            # may be converted to tuple... need to be consistent
+            # or dummy coding will malfuncion and double-count these
+            param = param.replace("[", "(")
+            param = param.replace("]", ")")
+            self.param_dict[key] = param
+        return self.param_dict
+    
 
 if __name__ == "__main__":
     
-    output_subdirectory = 'experiment_0'
+    output_dir = NT3_OUTPUT_DIR
+    output_subdirectory = NT3_SUBDIRECTORY
     
     #output_dir = os.path.join(NT3RunData.OUTPUT_DIR, output_subdirectory)
     #output_dir = "/Users/johnbauer/Benchmarks/Pilot1/NT3"
     #nt3_data = NT3RunData(output_dir=output_dir, subdirectory=output_subdirectory)
     
-    nt3_data = NT3RunData(subdirectory=output_subdirectory)
+    nt3_data = NT3RunData(output_dir=output_dir, subdirectory=output_subdirectory)
 
     nt3_data.add_all()
     data = nt3_data.dataframe
@@ -245,3 +315,22 @@ if __name__ == "__main__":
     print(data.head())
     print(data.columns)
     print(data.dtypes)
+
+
+    output_dir = P3B1_OUTPUT_DIR
+    output_subdirectory = P3B1_SUBDIRECTORY
+    
+    p3b1_data = P3B1RunData(output_dir=output_dir, subdirectory=output_subdirectory)
+
+    p3b1_data.add_all()
+    data = p3b1_data.dataframe
+    #data = pd.DataFrame(p3b1_data.data)
+    
+    print(p3b1_data.dummy_names)
+    print(p3b1_data.new_names)
+    print(p3b1_data.original_names)
+    
+    print(data.describe())
+    print(data.head())
+    print(data.columns)
+    print(data.dtypes)    
