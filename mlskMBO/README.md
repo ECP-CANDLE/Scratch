@@ -11,7 +11,6 @@ Any predictor in scikit-learn for which standard errors are available should be 
 
 
 Focus Algorithm is an object-oriented Python adaptation of Algorithm 1 from the mlrMBO paper:
-(view as raw to see indentation)
 
     Algorithm 1 Infill Optimization: Focus Search.
     Require: infill criterion c : X → R, control parameters nrestart, niters, npoints
