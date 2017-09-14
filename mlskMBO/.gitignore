@@ -1,0 +1,3 @@
+# ignore json run logs and training logs
+**/save/*.json
+**/save/training.log
