@@ -1,0 +1,1 @@
+ Clone Scratch and Benchmarks to the same directory, and mlskMBO will be able to import NT3_baseline_keras2 and common files (or P3B1, etc.).  Alternatively, use PYTHONPATH, or customize the list of paths im mlskMBO.py
