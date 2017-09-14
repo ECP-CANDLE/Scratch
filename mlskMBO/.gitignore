@@ -5,3 +5,4 @@
 **/*.pyc
 # ignore Spyder project
 **/.spyproject
+**/.DS_Store
