@@ -296,7 +296,7 @@ class DiscreteParameter(Parameter):
             max_item = max(values.items(), key=lambda item: item[1])
             return {self.key : max_item[0]}
         else:
-            return {self.key : dummies.get(self.key, None)}
+            return {self.key : dummies.get(self.key, "")}
     
 # =============================================================================
 #     def decode_dummies_dict(self, dummies):

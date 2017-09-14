@@ -160,7 +160,7 @@ class NT3RunData(RunData):
     PARAM_CATEGORICAL = ['dense', 'conv']
     
     def __init__(self,
-                 output_dir=OUTPUT_DIR, 
+                 output_dir=NT3_OUTPUT_DIR, 
                  subdirectory="",
                  run_file_pattern=RUN_FILE_PATTERN,
                  json_keys=JSON_KEYS,
@@ -201,7 +201,7 @@ class P3B1RunData(RunData):
                          'activation', 'optimizer']
     
     def __init__(self,
-                 output_dir=OUTPUT_DIR, 
+                 output_dir=P3B1_OUTPUT_DIR, 
                  subdirectory="",
                  run_file_pattern=RUN_FILE_PATTERN,
                  json_keys=JSON_KEYS,
