@@ -1,3 +1,7 @@
 # ignore json run logs and training logs
 **/save/*.json
 **/save/training.log
+# ignore compiled python
+**/*.pyc
+# ignore Spyder project
+**/.spyproject
