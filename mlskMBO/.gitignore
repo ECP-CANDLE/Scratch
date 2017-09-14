@@ -3,3 +3,5 @@
 **/save/training.log
 # ignore compiled python
 **/*.pyc
+# ignore Spyder project
+**/.spyproject
