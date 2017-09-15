@@ -37,3 +37,14 @@ Focus Algorithm is an object-oriented Python adaptation of Algorithm 1 from the 
 
 [mlrMBO: A Modular Framework for Model-Based Optimization of Expensive Black-Box Functions
 Bernd Bischla, Jakob Richterb, Jakob Bossekc, Daniel Hornb, Janek Thomasa, Michel Langb]
+
+
+mlskMBO.py currently is configured to gives a minimalistic demonstration.
+
+The code in nt3_run_data scrapes the json log files produced by running nt3_baseline_keras2, and collects the results into a pandas dataframe.   
+
+Currently, results from an initial grid with a few hundred points are stored in nt3_initial_data.csv and read into a dataframe, to streamline demonstration.  The get_nt3_data function can be directed to the location of json logs from NT3 if available.
+
+A Gaussian Process Regression models the response (validation loss), and scikit-learn 'optimize' finds the location of the parameter values which give the minimal value of the model.  This is used as the starting point for the focus algorithm, which draws parameter values at random, but becoming closer to the starting point.  The resulting list of dictionaries may optionally be evaluated by nt3_baseline_keras2.
+
+The json log files which are produced could then be read in with get_nt3_data to define a new model, and so on ... 
