@@ -5,3 +5,5 @@
 *.ini
 *.ini
 *.pyc
+.spyproject/codestyle.ini
+*.ini
