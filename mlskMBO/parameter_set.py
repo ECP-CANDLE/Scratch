@@ -68,94 +68,20 @@ class ParameterSet(object):
     def __str__(self):
         return "\n".join(str(param_obj) for param_obj in self._parameters.values())
 
-    def decode_dummies_dict(self, dummies):
+    def decode_dummies(self, dummies):
         """Dictionary has names of the form 'key_categoryvalue' 
         
-        Picks out the variable corresponding to this parameter
+        Each parameter picks out the  corresponding variables
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
         decoded = {}
         for param in self._parameters.values():
-            decoded.update(param.decode_dummies_dict(dummies))
+            decoded.update(param.decode_dummies(dummies))
         return decoded
 #        decoded = {}
 #        for key, value in dummies.items():
-#            decoded.update(self[key].decode_dummies_dict())
+#            decoded.update(self[key].decode_dummies())
 #        return decoded
-
-# =============================================================================
-# Handle dummy coding, translate dummies back into categorical, etc.
-# Should this really be a subclass of DataFrame?
-# =============================================================================
-class DataFrameWithDummies(object):
-    """Creates dummy coded variables in df, and associated Parameter objects
-    """
-    def __init__(self, df, dummies=[]):
-        assert isinstance(df, pd.DataFrame)
-        
-        #self.pdtypes = pdtypes
-        self.dummies = dummies
-        #df = df.astype(pdtypes) if pdtypes else df
-        df = pd.get_dummies(df, columns=dummies) if dummies else df
-        names = df.columns
-        dummy_values = defaultdict(list)
-        # TODO: use dummy_names instead of dummy_values directly in get_dummies
-        # (or rip this out, as it's replicated when the DiscreteParameter 
-        # objects are initialized)
-        # TODO: test that dummy_names match those created by DiscreteParameter
-        # dummy names and the corresponding category value
-        # {'param_catval' : catval}
-        dummy_names = OrderedDict()
-
-        #rename = {}
-        #original = {}
-        #index = Counter()
-        # TODO: this is not bulletproof, but mistakes are not likely
-        # if parameters have reasonable names not ending in _0, _1, etc.
-        # TODO: careful, parameter names like batch_size should be compared
-        # by matching all the characters name[:len(dummyname}] == dummyname
-        for name in names:
-            name_ = name.split("_")
-            rootname = name_[0]
-            if rootname in dummies:
-                categoryvalue = "_".join(name_[1:])
-                dummy_values[rootname].append(categoryvalue)
-                dummy_names[name] = categoryvalue
-                #newname = "{}_{}".format(rootname, index[rootname])
-                #index[rootname] += 1
-                #original[newname] = name
-                #rename[name] = newname
-        self._df = None
-
-        self.dummy_values = dummy_values
-        self.dummy_names = dummy_names
-
-        #self.original_names = original
-        #self.new_names = rename
-        # TODO: less drastic resolution for name conflicts before rename
-        #for name in rename.values():
-        #    assert name not in names, "Name conflict: {}".format(name)
-        # n.b. original.keys() == rename.values() and vice-versa 
-        #df.rename(columns=rename, inplace=True)
-        self._df = df
-        self._dummy_parameters = None
-        
-    def get_dataframe(self):
-        return self._df
-        
-    # TODO: consider moving more here, like most of what is in init
-    # TODO: make this a full-fledged property
-    def get_dummies(self):
-        """Lazy creation of DiscreteParameter objects corresponding to dummies 
-        """
-        if not self._dummy_parameters:
-            dummy_parameters = ParameterSet()
-            for name, values in self.dummy_values.items():
-                param = DiscreteParameter(name, values)
-                dummy_parameters.add(param)
-            self._dummy_parameters = dummy_parameters
-        return self._dummy_parameters
-    
     
 # =============================================================================
 # Abstract class providing behavior modelled on mlrMBO, ... especially focus
@@ -182,7 +108,7 @@ class Parameter(object):
     # overridden by DiscreteParameter to undo dummy coding
     # more efficient to do in ParameterSet
     # also IntgerParameter should enforce int(value)
-    def decode_dummies_dict(self, dummies):
+    def decode_dummies(self, dummies):
         """Picks out the variable corresponding to this parameter
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
@@ -193,6 +119,7 @@ class Parameter(object):
             return {self.key : value}
 
     def validate(self, value):
+        """Override in subclass to provide a valid value"""
         return value
 
 # =============================================================================
@@ -217,14 +144,16 @@ class FixedParameter(Parameter):
         return "FixedParameter[{}], {}".format(self.key, self.value)
                 
 class DiscreteParameter(Parameter):
-    def __init__(self, key, values):
+    def __init__(self, key, values, prefix_sep="|"):
         assert isinstance(values, (list, tuple)), "Expecting a list of values"
         #assert len(key.split("_")) == 1, "Design limitation: dummy root names cannot include '_'"
         super(DiscreteParameter, self).__init__(key)
         self.values = values
+        self.prefix_sep = prefix_sep
         names = OrderedDict()
+        # n.b. names uses the string representation of each value in the key
         for val in self.values:
-            names["{}_{}".format(key, val)] = val
+            names["{}{}{}".format(key, prefix_sep, val)] = val
         self._names = names
         
     def draw(self):
@@ -246,6 +175,10 @@ class DiscreteParameter(Parameter):
     def __str__(self):
         return "DiscreteParameter[{}], {}".format(self.key, self.values)
     
+    # TODO: make this into __getitem__ ???
+    def get_categoryvalue(self, name):
+        return self._names.get(name, "")
+    
     # probably not used anytime soon
     def get_dummies_as_list(self, value):
         dummies = [0.0] * len(self.values)
@@ -262,6 +195,7 @@ class DiscreteParameter(Parameter):
 #            self._names = ["{}_{}".format(root_name, val) for val in self.values]
         return {name : dval for name, dval in zip(self._names.keys(), dummies)}
     
+    # another one probably never to be used...
     def decode_dummies_list(self, dummies):
         """Dictionary with original categorical value from list of values"""
         # assume dummies is list, len(dummies) == len(self.values)
@@ -271,8 +205,8 @@ class DiscreteParameter(Parameter):
         index = pd.Series(dummies).idxmax()
         return {self.key : self.values[index]}
     
-    def decode_dummies_dict(self, dummies):
-        """Dictionary has names of the form 'key_categoryvalue' 
+    def decode_dummies(self, dummies):
+        """dummies is a dict having names of the form 'key|categoryvalue' 
         
         Picks out the variables corresponding to this parameter
         Accumulates their values
@@ -280,26 +214,55 @@ class DiscreteParameter(Parameter):
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
         values = {}
-        for key, value in dummies.items():
-            root = key[:len(self.key)]
-            if root == self.key:
-                # categoryvalue = key[len(self.key):]
-                categoryvalue = self._names.get(key, None)
-                if categoryvalue is not None:
-                    #print("Decode[{}]: {} = {}".format(key, categoryvalue, value))
-                    # ad hoc solution for batch_size, which has lists as values
-                    if isinstance(categoryvalue, list):
-                        # avoid unhashable type error
-                        categoryvalue = tuple(categoryvalue)
-                    values[categoryvalue] = value
+        for dname, dvalue in dummies.items():
+            #print("Parameter[{}] | decode {}:{}".format(self.key, dname, dvalue))
+            if dname == self.key:
+                # no dummies were created, e.g. NT3 batch_size
+                return { self.key : dvalue }
+            root = dname[:len(self.key)]
+            if self.key == root:
+                values[dname] = dvalue
         if values:
+            #print("Parameter[{}] | values {}".format(self.key, values))
             max_item = max(values.items(), key=lambda item: item[1])
-            return {self.key : max_item[0]}
+            #print("Parameter[{}] | values[{}] = {}".format(self.key, max_item[0], max_item[1]))
+            #print("---------[{}] | category value = {}".format(self.key, self.get_categoryvalue(max_item[0])))
+            return {self.key : self.get_categoryvalue(max_item[0])}
         else:
+            #return {}
+            #print("returning [ {}:{} ]".format(self.key, dummies.get(self.key)))
             return {self.key : dummies.get(self.key, "")}
+# =============================================================================
+#     def decode_dummies(self, dummies):
+#         """dummies is a dict having names of the form 'key|categoryvalue' 
+#         
+#         Picks out the variables corresponding to this parameter
+#         Accumulates their values
+#         returns the category having the largest value
+#         """
+#         assert isinstance(dummies, dict), "Expecting a dictionary"
+#         values = {}
+#         for key, value in dummies.items():
+#             root = key[:len(self.key)]
+#             if root == self.key:
+#                 # categoryvalue = key[len(self.key):]
+#                 categoryvalue = self._names.get(key, None)
+#                 if categoryvalue is not None:
+#                     #print("Decode[{}]: {} = {}".format(key, categoryvalue, value))
+#                     # ad hoc solution for batch_size, which has lists as values
+#                     if isinstance(categoryvalue, list):
+#                         # avoid unhashable type error
+#                         categoryvalue = tuple(categoryvalue)
+#                     values[categoryvalue] = value
+#         if values:
+#             max_item = max(values.items(), key=lambda item: item[1])
+#             return {self.key : max_item[0]}
+#         else:
+#             return {self.key : dummies.get(self.key, "")}
+# =============================================================================
     
 # =============================================================================
-#     def decode_dummies_dict(self, dummies):
+#     def decode_dummies(self, dummies):
 #         """Dictionary has names of the form 'key_categoryvalue' 
 #         
 #         Picks out the variables corresponding to this parameter
@@ -351,7 +314,7 @@ class NumericParameter(Parameter):
     def __str__(self):
         return "NumericParameter[{}], {}, {}".format(self.key, self.lower, self.upper)
 
-    def decode_dummies_dict(self, dummies):
+    def decode_dummies(self, dummies):
         """Picks out the variable corresponding to this parameter
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
@@ -392,7 +355,7 @@ class IntegerParameter(Parameter):
     def __str__(self):
         return "IntegerParameter[{}], {}, {}".format(self.key, self.lower, self.upper)
     
-    def decode_dummies_dict(self, dummies):
+    def decode_dummies(self, dummies):
         """Picks out the variable corresponding to this parameter
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
@@ -404,10 +367,89 @@ class IntegerParameter(Parameter):
             #print("{} called with value {}, returning value {}".format(self, value, ret_val))
             return {self.key : ret_val}
 
+
 # =============================================================================
-# TEMPORARY REFERENCE from nt3_param_set.R
+# Handle dummy coding, translate dummies back into categorical, etc.
+# Should this really be a subclass of DataFrame?
 # =============================================================================
-nt3_paramset = """
+class DataFrameWithDummies(object):
+    """Creates dummy coded variables in df, and associated Parameter objects
+    """
+    PREFIX_SEP = "|"
+
+    def __init__(self, df, dummies=[]):
+        assert isinstance(df, pd.DataFrame)
+        assert all(DataFrameWithDummies.PREFIX_SEP not in name for name in df.columns), "{} is not allowed in parameter names".format(DataFrameWithDummies.PREFIX_SEP)
+        
+        #self.pdtypes = pdtypes
+        self.dummies = dummies
+        #df = df.astype(pdtypes) if pdtypes else df
+        df = pd.get_dummies(df, columns=dummies, prefix_sep=DataFrameWithDummies.PREFIX_SEP) if dummies else df
+        names = df.columns
+        dummy_values = defaultdict(list)
+        # TODO: use dummy_names instead of dummy_values directly in get_dummies
+        # (or rip this out, as it's replicated when the DiscreteParameter 
+        # objects are initialized)
+        # TODO: test that dummy_names match those created by DiscreteParameter
+        # dummy names and the corresponding category value
+        # {'param_catval' : catval}
+        dummy_names = OrderedDict()
+
+        #rename = {}
+        #original = {}
+        #index = Counter()
+        # TODO: this is not bulletproof, but mistakes are not likely
+        # if parameters have reasonable names not ending in _0, _1, etc.
+        # TODO: careful, parameter names like batch_size should be compared
+        # by matching all the characters name[:len(dummyname}] == dummyname
+        for name in names:
+            name_ = name.split(DataFrameWithDummies.PREFIX_SEP)
+            rootname = name_[0]
+            if rootname in dummies:
+                categoryvalue = DataFrameWithDummies.PREFIX_SEP.join(name_[1:])
+                dummy_values[rootname].append(categoryvalue)
+                dummy_names[name] = categoryvalue
+                #newname = "{}_{}".format(rootname, index[rootname])
+                #index[rootname] += 1
+                #original[newname] = name
+                #rename[name] = newname
+        self._df = None
+
+        self.dummy_values = dummy_values
+        self.dummy_names = dummy_names
+
+        #self.original_names = original
+        #self.new_names = rename
+        # TODO: less drastic resolution for name conflicts before rename
+        #for name in rename.values():
+        #    assert name not in names, "Name conflict: {}".format(name)
+        # n.b. original.keys() == rename.values() and vice-versa 
+        #df.rename(columns=rename, inplace=True)
+        self._df = df
+        self._dummy_parameters = None
+        
+    def _get_dataframe(self):
+        return self._df
+    
+    dataframe = property(_get_dataframe, None, None, "Dataframe with dummy coded indicators for categorical variables")
+        
+    # TODO: consider moving more here, like most of what is in init
+    # TODO: make this a full-fledged property
+    def get_dummies(self):
+        """Lazy creation of DiscreteParameter objects corresponding to dummies 
+        """
+        if not self._dummy_parameters:
+            dummy_parameters = ParameterSet()
+            for name, values in self.dummy_values.items():
+                param = DiscreteParameter(name, values)
+                dummy_parameters.add(param)
+            self._dummy_parameters = dummy_parameters
+        return self._dummy_parameters
+    
+# =============================================================================
+# REFERENCE from nt3_param_set.R
+# =============================================================================
+nt3_paramset_R = """
 # R code for reference:
 
 param.set <- makeParamSet(
@@ -424,6 +466,9 @@ param.set <- makeParamSet(
 )
 """
 
+# =============================================================================
+# Creates ParameterSet equivalent to the one used for mlrMBO
+# =============================================================================
 def NT3_ParameterSet():
     """Utility function to create NT3 Parameter Set corresponding to R version"""
     batch_size = [16, 32, 64, 128, 256, 512]
@@ -453,42 +498,94 @@ def NT3_ParameterSet():
     
     return ps
 
+# =============================================================================
+# Test functionality
+# =============================================================================
 if __name__ == "__main__":
 
     ps = NT3_ParameterSet()
-
+    print("NT3 Parameter Set:")
     print(ps)
     
+    data = defaultdict(list)
     for i in range(5):
-        print(ps.draw())
+        params = ps.draw()
+        params['validation_loss'] = 1/(1.0 + i)
+        for param, value in params.items():
+            if param in ("dense", "conv"):
+                data[param].append(str(value))
+            else:
+                data[param].append(value)
+    testdf = pd.DataFrame(data)
+    dfwd = DataFrameWithDummies(testdf, dummies=['conv'])
+    df = dfwd.dataframe
+    for i in range(df.shape[0]):
+        datum = dict(df.iloc[i])
+        print("{:2d} {}".format(i, ps.decode_dummies(datum)))    
         
-    ps1 = ps.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
-    print(ps1)
-    for i in range(10):
-        print(ps1.draw())
-        
-    ps2 = ps1.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
-    print(ps2)
-    for i in range(10):
-        print(ps2.draw())
-        
-    ps2 = ps2.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
-    print(ps2)
-    for i in range(10):
-        print(ps2.draw())
-            
-    for i in range(30):
-        print(ps.draw())
+    
+    testdict = {"batch_size" : 16,
+                "conv|[50, 50, 50, 50, 50, 1]" : 0.03,
+                "conv|[25, 25, 25, 25, 25, 1]" : 0.70, 
+                "conv|[64, 32, 16, 32, 64, 1]" : 0.27,
+                "dense|[1000, 500, 100, 50]" : 0.1,
+                "dense|[2000, 1000, 500, 100, 50]" : 0.1,
+                "dense|[2000, 1000, 1000, 500, 100, 50]" : 0.2,
+                "drop" : 0.01}
+    
+    test_param_dict = ps.decode_dummies(testdict)
+    print(test_param_dict)
+    
+# =============================================================================
+#     testdata = {"batch_size" : [16, 16, 32],
+#                 "conv" : ["[50, 50, 50, 50, 50, 1]",
+#                           "[25, 25, 25, 25, 25, 1]", 
+#                           "[64, 32, 16, 32, 64, 1]"],
+#                 "drop" : [0.01, 0.02, 0.03]}
+#     
+#     testdf = pd.DataFrame(testdata)
+#     dfwd = DataFrameWithDummies(testdf, dummies=['conv'])
+#     data = dfwd.dataframe
+#     for i in range(data.shape[0]):
+#         datum = dict(data.iloc[i])
+#         print("{:2d} {}".format(i, ps.decode_dummies(datum)))
+# =============================================================================
+    
+    
+#    ps.decode_dummies(testdf.iloc[0])
+# =============================================================================
+#     for i in range(5):
+#         print(ps.draw())
+#         
+#     ps1 = ps.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
+#     print(ps1)
+#     for i in range(10):
+#         print(ps1.draw())
+#         
+#     ps2 = ps1.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
+#     print(ps2)
+#     for i in range(10):
+#         print(ps2.draw())
+#         
+#     ps2 = ps2.focus({ "batch_size" : 32, "learning_rate" : 0.1, "epochs" : 10, "drop" : 0.1})
+#     print(ps2)
+#     for i in range(10):
+#         print(ps2.draw())
+#             
+#     for i in range(30):
+#         print(ps.draw())
+# =============================================================================
         
 # =============================================================================
 #     testdict = {'foo':[i for i in range(5)], 'a':[1,2,2,1,2], 'b':['[0 1]', '[1 0]', '[1 1]', '[0 1]', '[0 1]']}
+#     testdf = pd.DataFrame(testdict)
 #     dpsi = DataFrameWithDummies(testdf, dummies=['a', 'b'])
 #     dummies = dpsi.get_dummies()
-# 
-#     dfwd = ParameterSet.DataFrameWithDummies(testdf, dummies=['a', 'b'])
+#     print(dummies)
+#     
+#     dfwd = DataFrameWithDummies(testdf, dummies=['a', 'b'])
 #     dummies = dfwd.get_dummies()
-#     for d in dummies:
-#         print(d)
+#     print(dummies)
 #         
 #     da = dummies[0]
 #     db = dummies[1]
@@ -505,5 +602,7 @@ if __name__ == "__main__":
 #     db.decode_dummies([0,1,0])
 #     db.decode_dummies([0,0.1,0])
 #     db.decode_dummies([0,0.1,0.2])
+
 #     db.decode_dummies([0,0.1,0.2,9])
+# 
 # =============================================================================

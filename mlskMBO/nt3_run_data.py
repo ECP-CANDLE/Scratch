@@ -13,7 +13,7 @@ from collections import defaultdict, Counter
 
    
 # pick a file with .format(run_id),  or use  .format("*") with glob 
-RUN_FILE_PATTERN = "run.{}.json"
+RUN_JSON_PATTERN = "run.{}.json"
 
 
 # =============================================================================
@@ -27,10 +27,14 @@ P3B1_SUBDIRECTORY = ''
 
 class RunData(object):
     """Scrape data from run.###.json files"""
+    # used when creating dummy variables for categorical variables
+    # should not be found in parameter names
+    # if changed
+    PREFIX_SEP = "|"
     def __init__(self,
                  output_dir, 
                  subdirectory,
-                 run_file_pattern,
+                 run_json_pattern,
                  json_keys,
                  param_keys,
                  pdtypes,
@@ -38,7 +42,7 @@ class RunData(object):
         
         self.json_keys = json_keys
         self.param_keys = param_keys # parameters to send to pandas dataframe
-        self.run_file_path = os.path.join(output_dir, subdirectory, run_file_pattern)
+        self.run_file_path = os.path.join(output_dir, subdirectory, run_json_pattern)
         self.data = defaultdict(list)
         # internal use only, use dataframe property to access
         self._df = None
@@ -51,10 +55,6 @@ class RunData(object):
     def run_file(self, run_id):
         """run_id ="*" to get pattern for all, otherwise a single number"""
         return self.run_file_path.format(run_id)
-        
-    def add_file(self, filename):
-        param_dict = NT3RunJSONLog(filename).parse_file()
-        self.add(param_dict)
         
     def add_all(self):
         for run_file in glob.iglob(self.run_file("*")):
@@ -70,6 +70,8 @@ class RunData(object):
         self.add(param_dict)
             
     def _get_dataframe(self):
+        msg = "Categorical variable names must not contain {}".format(RunData.PREFIX_SEP)
+        assert all(RunData.PREFIX_SEP not in dname for dname in self.dummies), msg
         if self._df:
             df = self._df
         else:
@@ -80,23 +82,26 @@ class RunData(object):
             pdtypes = self.pdtypes
             dummies = self.dummies
             df = df.astype(pdtypes) if pdtypes else df
-            df = pd.get_dummies(df, columns=dummies) if dummies else df
+            df = pd.get_dummies(df, columns=dummies, prefix_sep=RunData.PREFIX_SEP) if dummies else df
             names = df.columns
             dummy_names = self.dummy_names
             rename = {}
             original = {}
             index = Counter()
-            # TODO: this is not bulletproof, but mistakes are not likely
-            # if parameters have reasonable names not ending in _0, _1, etc.
-            for name in names:
-                name_ = name.split("_")
-                rootname = name_[0]
-                if rootname in dummies:
-                    dummy_names[rootname].append("_".join(name_[1:]))
-                    newname = "{}_{}".format(rootname, index[rootname])
-                    index[rootname] += 1
-                    original[newname] = name
-                    rename[name] = newname
+            for rootname in dummies:
+                for name in names:
+                    if rootname == name[:len(rootname)]:
+                        catname = name[len(rootname):]
+                        if RunData.PREFIX_SEP in catname:
+                            catname = catname.split(RunData.PREFIX_SEP)
+                            # n.b. this is impossible given the assertion
+                            # TODO: remove one or the other
+                            catname = RunData.PREFIX_SEP.join(catname[1:])
+                            dummy_names[rootname].append(catname)
+                            newname = "{}_{}".format(rootname, index[rootname])
+                            index[rootname] += 1
+                            original[newname] = name
+                            rename[name] = newname
             self.dummy_names = dummy_names
             self.original_names = original
             self.new_names = rename
@@ -105,8 +110,49 @@ class RunData(object):
                 assert name not in names, "Name conflict: {}".format(name)
             # n.b. original.keys() == rename.values() and vice-versa 
             #df.rename(columns=rename, inplace=True)
-            self.df = df
+            self._df = df
         return df
+
+# =============================================================================
+#     def _get_dataframe_old(self):
+#         if self._df:
+#             df = self._df
+#         else:
+#             df = pd.DataFrame.from_dict(self.data)
+#             # TODO: discard data dict if unneeded
+#             #self.data = None
+#             # training_loss and validation_loss are already float64
+#             pdtypes = self.pdtypes
+#             dummies = self.dummies
+#             df = df.astype(pdtypes) if pdtypes else df
+#             df = pd.get_dummies(df, columns=dummies, prefix_sep="|") if dummies else df
+#             names = df.columns
+#             dummy_names = self.dummy_names
+#             rename = {}
+#             original = {}
+#             index = Counter()
+#             # TODO: this is not bulletproof, but mistakes are not likely
+#             # if parameters have reasonable names not ending in _0, _1, etc.
+#             for name in names:
+#                 name_ = name.split("|")
+#                 rootname = name_[0]
+#                 if rootname in dummies:
+#                     dummy_names[rootname].append("|".join(name_[1:]))
+#                     newname = "{}_{}".format(rootname, index[rootname])
+#                     index[rootname] += 1
+#                     original[newname] = name
+#                     rename[name] = newname
+#             self.dummy_names = dummy_names
+#             self.original_names = original
+#             self.new_names = rename
+#             # TODO: less drastic resolution for name conflicts before rename
+#             for name in rename.values():
+#                 assert name not in names, "Name conflict: {}".format(name)
+#             # n.b. original.keys() == rename.values() and vice-versa 
+#             #df.rename(columns=rename, inplace=True)
+#             self.df = df
+#         return df
+# =============================================================================
     
     dataframe = property(_get_dataframe, None, None, "Lazy evaluation of dataframe")
     
@@ -118,14 +164,11 @@ class RunData(object):
         """
         renamed = {}
         #multivalued = defaultdict(list)
-        for key in self.dummies.keys():
+        for key, values in self.dummies.items():
             # set up list of correct length to hold indexed values
-#            values = []
-#            for i in range(len(self.dummies[key])):
-#                values.append(None)
-            renamed[key] = [None] * len(self.dummies[key])
+            renamed[key] = [None] * len(values)
         for key in param_dict:
-            tokens = key.split("_")
+            tokens = key.split(RunData.PREFIX_SEP)
             root_name = tokens[0]
             if root_name in self.dummies:
                 index = int(tokens[1])
@@ -162,7 +205,7 @@ class NT3RunData(RunData):
     def __init__(self,
                  output_dir=NT3_OUTPUT_DIR, 
                  subdirectory="",
-                 run_file_pattern=RUN_FILE_PATTERN,
+                 run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=JSON_KEYS,
                  param_keys=PARAM_KEYS,
                  pdtypes=PARAM_DTYPES,
@@ -174,7 +217,7 @@ class NT3RunData(RunData):
         super(NT3RunData, self).__init__(
                  output_dir=output_dir, 
                  subdirectory=subdirectory,
-                 run_file_pattern=run_file_pattern,
+                 run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=json_keys,
                  param_keys=param_keys,
                  pdtypes=pdtypes,
@@ -203,7 +246,7 @@ class P3B1RunData(RunData):
     def __init__(self,
                  output_dir=P3B1_OUTPUT_DIR, 
                  subdirectory="",
-                 run_file_pattern=RUN_FILE_PATTERN,
+                 run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=JSON_KEYS,
                  param_keys=PARAM_KEYS,
                  pdtypes=PARAM_DTYPES,
@@ -215,7 +258,7 @@ class P3B1RunData(RunData):
         super(P3B1RunData, self).__init__(
                  output_dir=output_dir, 
                  subdirectory=subdirectory,
-                 run_file_pattern=run_file_pattern,
+                 run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=json_keys,
                  param_keys=param_keys,
                  pdtypes=pdtypes,
@@ -286,8 +329,9 @@ class JSONLog:
             # be (string representations of) lists, but elsewhere these
             # may be converted to tuple... need to be consistent
             # or dummy coding will malfuncion and double-count these
-            param = param.replace("[", "(")
-            param = param.replace("]", ")")
+            # TODO: get rid of this if it's really no longer needed
+            #param = param.replace("[", "(")
+            #param = param.replace("]", ")")
             self.param_dict[key] = param
         return self.param_dict
     
