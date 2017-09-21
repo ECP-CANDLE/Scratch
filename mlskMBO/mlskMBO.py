@@ -94,6 +94,7 @@ TARGET = 'validation_loss'
 # =============================================================================
 # ParameterSet generated initial sample grid used to train model
 # creates candidate parameter dictionaries after model is trained
+# see parameter_set for a more complete parameter set matching R
 # =============================================================================
 batch_size = [16, 32, 64, 128, 256, 512]
 #activation = ["softmax", "elu", "softplus", "softsign", "relu", "tanh", "sigmoid", "hard_sigmoid", "linear"]
@@ -126,27 +127,22 @@ ps.add(prs.DiscreteParameter("conv", conv))
 # DATA
 # =============================================================================
 
+# TODO: relocate pdtypes to nt3_run_data
+# coerce data into correct types in dataframe
+float64 = 'float64'
+int64 =  'int64'
+pdtypes = {'batch_size': int64,
+           'drop': float64,
+           'epochs': int64,
+           'learning_rate': float64,
+           'run_id': int64,
+           'runtime_hours' : float64,
+           'training_loss' : float64,
+           'validation_loss' : float64
+           }
 
-
-# =============================================================================
-# TODO: move this to nt3_run_data
-# =============================================================================
-
-# =============================================================================
-# # coerce data into correct types in dataframe
-# float64 = 'float64'
-# int64 =  'int64'
-# pdtypes = {'batch_size': int64,
-#            'drop': float64,
-#            'epochs': int64,
-#            'learning_rate': float64,
-#            'run_id': int64,
-#            'runtime_hours' : float64,
-#            'training_loss' : float64,
-#            'validation_loss' : float64
-#            }
-# =============================================================================
-
+# utility function gets data from earlier runs, saved from dataframe to .csv
+# or from a directory populated with run._.json log files
 def get_nt3_data(output_dir=output_dir,
              subdirectory=output_subdirectory,
              dtype=pdtypes,
@@ -154,7 +150,7 @@ def get_nt3_data(output_dir=output_dir,
     """Assumes json log files from a previous run are available
 
     If json logs are in output_subdirectory, call with from_csv=False
-    Otherwise it will read cached data from a previous run from a csv file
+    Otherwise it will read cached data from a previous run from a .csv file
     """
 
     if from_csv:
@@ -278,59 +274,7 @@ print("Parameter values for best prediction")
 print(X_gstar)
 gprpred.plot(title="GPR predictions")
 
-# =============================================================================
-# Xgs = pd.DataFrame(scaler.transform(Xgrid), columns=Xgrid.columns)
-# grid_pred, grid_se = gpr.predict(Xgs, return_std=True)
-# gprpredgrid = pd.DataFrame({"pred_gpr" : grid_pred, "pred_se" : grid_se})
-# print("GPR predictions on larger grid")
-# print(gprpredgrid.describe())
-# 
-# ggpidx = gprpredgrid.pred_gpr.idxmin()
-# X_ggstar = Xgrid.iloc[ggpidx]
-# pred_ggstar = gprpredgrid.pred_gpr.iloc[ggpidx] #gpr.predict(Xgs.iloc[ggpidx])
-# print("Predicted GPR minimum")
-# print(pred_ggstar)
-# print("Parameter values at GPR-pred min")
-# print(X_ggstar)
-# gprpredgrid.plot(title="GPR predictions on expanded grid")
-# =============================================================================
-
-
-# =============================================================================
-# ... Lower Confidence Bound to be migrated elsewhere ...
-# =============================================================================
-# =============================================================================
-# def GPR_LCB(gpr, X, number_to_sample):
-#     # X should be scaled!!!
-#     pred, se = gpr.predict(X, return_std=True)
-#     preds = pd.DataFrame({"pred" : pred, "se" : se})
-#     # n.b. lambda is a keyword so lmbda vector of values
-#     lmbda = (ParameterSampler({ "lm" : expon()}, n_iter=number_to_sample))
-#     lcb = pd.DataFrame({ "lcb_{}".format(i) : preds.pred - li["lm"] * preds.se for i, li in enumerate(lmbda) })
-#     return lcb
-# 
-# gprLCB = GPR_LCB(gpr, Xs, 5)
-# print("GPR Lower Confidence Bounds")
-# gprLCB.describe()
-# gprLCB.plot(title="GPR Lower Confidence Bounds")
-# 
-# print("Parameter values of LCB selected best point")
-# print(X.iloc[gprLCB.idxmin()])
-# 
-# #file_path = os.path.dirname(os.path.realpath(__file__))
-# #config_file = os.path.join(file_path, 'nt3_default_model.txt')
-# #
-# #default_params = nt3b.read_config_file(config_file)
-# 
-# candidate_LCB = set()
-# for col in gprLCB.columns:
-#     gprsorted = gprLCB.sort_values(by=col)
-#     ids = gprsorted.head(15).index
-#     #print(col, ids)
-#     candidate_LCB.update(ids)
-# =============================================================================
-
-
+# utility function to override default values
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
     run_params = default_params.copy()
     run_params.update(params)
@@ -344,31 +288,6 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     return run_params
 
 # =============================================================================
-# ... Lower Confidence Bounds to be migrated elsewhere ...
-# # =============================================================================
-# =============================================================================
-# Extract the candidates from Lower Confidence Bounds
-#p = However, for GPR on NT3 the standard error is very uniform
-# so these are could just as well be obtained as the points with the lowest loss
-# For Random Forest Regression, evaluate on many points of a grid
-# =============================================================================
-# TODO: stop looking up index in original!  Does not generalize
-# give them unique ids by specifying a start value
-# =============================================================================
-# start_id = 5000
-# for i, c in enumerate(candidate_LCB):
-#     d = dict(X.iloc[c])
-#     # give them unique run_id values in case they actually get used...
-#     params = param_update(d, default_params, i+start_id, output_subdirectory)
-#     # TODO: translate categorical variables' parameters back to original names
-#     print("="*80)
-#     print("index: {:4d} loss: {}".format(c, y.iloc[c]))
-#     print(params)
-#     # since these already have known losses, don't send to keras
-#     #nt3b.run(params)
-# =============================================================================
-
-# =============================================================================
 # OPTIMIZATION
 # =============================================================================
 # n.b. bounds must be supplied in the standardized coordinates
@@ -380,14 +299,17 @@ bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
 
 # using location of best actual value (yidxmin) as starting point
 # other starting points potentailly could find local minima
+# minimal testing for NT3 suggests it usually finds the global minimum
 start_val = Xs[yidxmin].reshape(-1,  1)
 result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
+
+# restore the original coordinates
 rx = scaler.inverse_transform(result.x)
+
+# undo the dummy coding
 columns = Xd.columns
 d = {col : val for col, val in zip(columns, rx)}
 d = ps.decode_dummies(d)
-# workaround for batch_size requiring int but using DiscreteParameter
-#d['batch_size'] = int(d.get('batch_size', 16))
 
 # =============================================================================
 # Begin amassing a bunch of candidates, starting with the GPR recommendation
@@ -397,26 +319,9 @@ d = ps.decode_dummies(d)
 # resulting log file will be saved as "run.{}.json".format(run_id)
 run_params = []
 params = param_update(d, default_params, len(run_params), output_subdirectory)
+print("Parameters from GPR | optimize")
 print(params)
-assert params['dense'], "dense = {}".format(params.get('dense'))
-assert params['conv'], "conv = {}".format(params.get('conv'))
 run_params.append(params)
-
-
-# =============================================================================
-# ... migrate ...
-# =============================================================================
-## use candidate_LCB as a convenient set of starting points
-#results = []
-#for c in candidate_LCB:
-#    result = sp.optimize.minimize(gpr.predict, Xs[c].reshape(-1,  1), method='L-BFGS-B', bounds=bounds)
-#    rx = scaler.inverse_transform(result.x)
-#    columns = Xd.columns
-#    d = {col : val for col, val in zip(columns, rx)}
-#    results.append(ps.decode_dummies_dict(d))
-#    d['batch_size'] = int(d.get('batch_size', 16))
-#    print(results[-1])
-    
 
 # =============================================================================
 # Construct new parameter sets focussed at various degrees on the best so far
@@ -456,9 +361,17 @@ for params in run_params:
 # Now gather up the results from output_subdirectory and repeat
 # =============================================================================
 if run_keras:
-    nt3_data = nt3d.NT3RunData(output_dir=output_dir,
-                               subdirectory=output_subdirectory) #,
-                               #pdtypes=pdtypes)
-    nt3_data.add_all()
-    #new_data = nt3_data.dataframe
-    new_data_dict = nt3_data.data   
+    new_data = get_nt3_data()
+    new_data.describe()
+ 
+# =============================================================================
+# Augment training data, update GPR model, generate new candidates ...
+# =============================================================================
+
+#    nt3_data = nt3d.NT3RunData(output_dir=output_dir,
+#                               subdirectory=output_subdirectory) #,
+#                               #pdtypes=pdtypes)
+#    nt3_data.add_all()
+#    new_data = nt3_data.dataframe
+#    #new_data_dict = nt3_data.data
+#    new_data.describe()
