@@ -62,7 +62,7 @@ The Gaussian Process Regression predictions exhibit periodicity at different sca
 
 ![gpr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/GPR_predictions.png)
 
-Although the scale of the fluctuations in the predicted values is much more subdued than the variation in the loss values, the dips in the predicted values correlate well with the promiment downward spikes in the observed loss.  
+Although the scale of the fluctuations in the predicted values is much more subdued than the variation in the loss values, the dips in the predicted values correlate well with the promiment downward spikes in the observed loss.  A comparable analysis using scikit-learn's Random Forest Regression as the predictor (as mlrMBO would do) showed no skill in identifying the spikes.
 
 ![validation_loss_gpr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/validation_loss_GPR_predictions.png)
 
