@@ -54,7 +54,7 @@ Graphs of the validation loss show that the smallest loss found when using initi
 ![initial data](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/validation_loss_initial_grid.png) 
 ![recommendations from GPR](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/validation_loss_GPR_recommendations.png)
 
-Initial parameter combinations were obtained by systematically enumerating over a grid, and the validation loss evaluated in keras:
+Initial parameter combinations were obtained by systematically enumerating over a grid of several hundred points, and the validation loss evaluated in keras:
 
 ![validation_loss](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/validation_loss.png)
 
@@ -62,8 +62,20 @@ The Gaussian Process Regression predictions exhibit periodicity at different sca
 
 ![gpr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/GPR_predictions.png)
 
-Although the scale of the fluctuations in the predicted values is much more subdued than the variation in the loss values, the dips in the predicted values correlate well with the promiment downward spikes in the observed loss.  A comparable analysis using scikit-learn's Random Forest Regression as the predictor (as mlrMBO would do) showed no skill in identifying the spikes.
+Although the scale of the fluctuations in the predicted values is much more subdued than the variation in the loss values, the dips in the predicted values correlate well with the promiment downward spikes in the observed loss.  A comparable analysis using scikit-learn's Random Forest Regression as the predictor (as mlrMBO would do) is superficially a good fit, but problems with generalization will be discussed below.
 
 ![validation_loss_gpr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/validation_loss_GPR_predictions.png)
 
 In the underlying multivariate space (not the linear ordering from the grid enumeration), scikit-learn's optimize has no difficulty finding the global minimum.  As noted above, proposing that point plus 27 nearby candidates using the focus algorithm adapted from mlrMBO found half a dozen which were dramatically improved over the training data.
+
+![rfr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/RFR_predictions.png)
+
+The Random Forest Regression appears to be a better fit to the training data than the Gaussian Process Regression.  However, when Random Forest is the model, the only way to search for optimal parameter values is to evaluate the model on a large grid:
+
+![grid_rfr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/grid_RFR_predictions.png)
+
+![grid_gpr_predictions](https://github.com/ECP-CANDLE/Scratch/blob/master/mlskMBO/grid_GPR_predictions.png)
+
+Noting that the training data were from an incomplete enumeration of the smaller grid, observe that GPR does not extrapolate outside the region where it was trained.  In contrast, RFR does not notice.  The small grid solution is extended across the parameter space.  Plotting the predictions in the order of enumeration results in the original fit simply being replicated periodically.  The set of parameter values corresponding to the minimum observed value in the training data are present in the downward spikes, along with 3360 other sets of parameter values with the same predicted value, and nothing to distinguish among them.  (Evaluating the model on a larger grid would only make it worse.)
+
+In contrast, when GPR is evaluated on the same grid, the downward spike corresponding to the minimum observed loss contains a single point.  Moreover, the model can be numerically optimized (rather than using a grid search), and candidate values  proposed. When evaluated, these have loss values superior to any seen in the training data.
