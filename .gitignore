@@ -1,10 +1,4 @@
-
-*.ini
-*.ini
-*.ini
-*.ini
-*.ini
 *.pyc
 .spyproject/codestyle.ini
 *.ini
-*.ini
+*.DS_Store
