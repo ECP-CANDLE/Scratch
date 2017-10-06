@@ -1,10 +1,7 @@
 
-*.ini
-*.ini
-*.ini
-*.ini
-*.ini
+run*.json
+*.log
 *.pyc
 .spyproject/codestyle.ini
 *.ini
-*.ini
+
