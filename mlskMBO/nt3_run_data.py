@@ -25,6 +25,15 @@ NT3_SUBDIRECTORY = 'experiment_0'
 P3B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot3/P3B1/save"
 P3B1_SUBDIRECTORY = ''
 
+# =============================================================================
+# Create a subclass to read JSON logs from a project, such as NT3 or P1B3
+# See subclasses below for examples
+# Each subclass simply packages suitable values with which to initialize
+# the RunData object.  RunData will then configure a JSON_Log object
+# for each file in the target directory/subdirectory
+# and append the requested values into a dataframe with one row for each 
+# value of run_id
+# =============================================================================
 class RunData(object):
     """Scrape data from run.###.json files"""
     # used when creating dummy variables for categorical variables
@@ -56,6 +65,10 @@ class RunData(object):
         """run_id ="*" to get pattern for all, otherwise a single number"""
         return self.run_file_path.format(run_id)
         
+    # TODO: optional directory/subdirectory
+    # allow calling for multiple subdirectories
+    # Workaround: use pd.concat((file1, file2, ...), axis=1)
+    # to combine data files
     def add_all(self):
         for run_file in glob.iglob(self.run_file("*")):
             self.add_file(run_file)
@@ -70,6 +83,10 @@ class RunData(object):
         self.add(param_dict)
             
     def _get_dataframe(self):
+        """utility function for lazy evaluation of data set from dict
+        
+        Creates dummy codes via Pandas get_dummies
+        """
         msg = "Categorical variable names must not contain {}".format(RunData.PREFIX_SEP)
         assert all(RunData.PREFIX_SEP not in dname for dname in self.dummies), msg
         if self._df:
@@ -113,47 +130,6 @@ class RunData(object):
             self._df = df
         return df
 
-# =============================================================================
-#     def _get_dataframe_old(self):
-#         if self._df:
-#             df = self._df
-#         else:
-#             df = pd.DataFrame.from_dict(self.data)
-#             # TODO: discard data dict if unneeded
-#             #self.data = None
-#             # training_loss and validation_loss are already float64
-#             pdtypes = self.pdtypes
-#             dummies = self.dummies
-#             df = df.astype(pdtypes) if pdtypes else df
-#             df = pd.get_dummies(df, columns=dummies, prefix_sep="|") if dummies else df
-#             names = df.columns
-#             dummy_names = self.dummy_names
-#             rename = {}
-#             original = {}
-#             index = Counter()
-#             # TODO: this is not bulletproof, but mistakes are not likely
-#             # if parameters have reasonable names not ending in _0, _1, etc.
-#             for name in names:
-#                 name_ = name.split("|")
-#                 rootname = name_[0]
-#                 if rootname in dummies:
-#                     dummy_names[rootname].append("|".join(name_[1:]))
-#                     newname = "{}_{}".format(rootname, index[rootname])
-#                     index[rootname] += 1
-#                     original[newname] = name
-#                     rename[name] = newname
-#             self.dummy_names = dummy_names
-#             self.original_names = original
-#             self.new_names = rename
-#             # TODO: less drastic resolution for name conflicts before rename
-#             for name in rename.values():
-#                 assert name not in names, "Name conflict: {}".format(name)
-#             # n.b. original.keys() == rename.values() and vice-versa 
-#             #df.rename(columns=rename, inplace=True)
-#             self.df = df
-#         return df
-# =============================================================================
-    
     dataframe = property(_get_dataframe, None, None, "Lazy evaluation of dataframe")
     
     # it seems worth thinking about a ParameterDict class that is aware of the issues...
@@ -189,6 +165,8 @@ class NT3RunData(RunData):
     # except 'parameters', which gets special treatment
     JSON_KEYS = ['run_id', 'training_loss', 'validation_loss', 'runtime_hours']
     # these are the keys actually being retreived as a dataframe
+    # possible values can be found in the 'parameters' list in JSON logs
+    # or solr files; each item is a string parameter_name: parameter_value
     PARAM_KEYS = ['conv', 'dense', 'epochs', 'batch_size', 'learning_rate',
                   'drop', 'classes', 'pool', 'run_id',
                   'training_loss', 'validation_loss', 'runtime_hours']
@@ -223,6 +201,16 @@ class NT3RunData(RunData):
                  pdtypes=pdtypes,
                  dummies=dummies)
 
+# =============================================================================
+# Setting up a new subclass
+# Open one of the JSON files (e.g. run.0.json)
+# Determine which value(s) should be collected (e.g. 'validation_loss')
+# These are listed as JSON_KEYS
+# Examine the list after 'parameters'
+# Each item is a string of the form parameter_name: parameter_value
+# Each will be split on ":" and added to the data dictionary
+# with key = parameter_name and value = parameter_value
+# =============================================================================
 
 class P3B1RunData(RunData):
     """Scrape P3B1 data from run.###.json files"""
@@ -230,6 +218,8 @@ class P3B1RunData(RunData):
     # except 'parameters', which gets special treatment
     JSON_KEYS = ['run_id', 'training_loss', 'validation_loss', 'runtime_hours']
     # these are the keys actually being retreived as a dataframe
+    # possible values can be found in the 'parameters' list in JSON logs
+    # or solr files; each item is a string parameter_name: parameter_value
     PARAM_KEYS = ['epochs', 'batch_size', 'learning_rate',
                   'dropout', 'shared_nnet_spec', 'ind_nnet_spec',
                   'activation', 'optimizer',

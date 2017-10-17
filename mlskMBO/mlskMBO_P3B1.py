@@ -10,90 +10,114 @@ Created on Thu Sep  7 11:10:38 2017
 
 # =============================================================================
 # Assumes mlskMBO is located in Scratch/mlskMBO, at the same level as Benchmarks
+# GitHub
+#    Scratch
+#        mlskMBO
+#    Benchmarks
+#        common
+#        Pilot1
+#            common
+#            P3B1
 # =============================================================================
 
 import os
 import sys
 
-
-def add_path(*args):
-    """utility function for joining paths"""
-    lib_path = os.path.abspath(os.path.join(*args))
-    sys.path.append(lib_path)
+# =============================================================================
+# Add paths to Benchmarks to system paths to allow imports
+# =============================================================================
     
 file_path = os.path.dirname(os.path.realpath(__file__))
 
-paths =  [['..', '..', 'Benchmarks', 'common'],
-          ['..', '..', 'Benchmarks', 'Pilot3', 'common'],
-          [ '..', '..', 'Benchmarks', 'Pilot3', 'P3B1']]
+paths = {"common" : ['..', '..', 'Benchmarks', 'common'],
+         "P3_common" : ['..', '..', 'Benchmarks', 'Pilot3', 'common'],
+         "P3B1" : ['..', '..', 'Benchmarks', 'Pilot3', 'P3B1']
+        }
 
-for path in paths:
-    p = [file_path]
-    p.extend(path)
-    add_path(*p)
+for path in paths.values():
+    lib_path = os.path.abspath(os.path.join(*[file_path]+path))
+    sys.path.append(lib_path)
+
+# TODO: change the name to run_data 
+# TODO: remove this unless run.x.x.x.json logs written by keras are being used
+# import nt3_run_data as nt3d
+import p3b1_baseline_keras2 as p3b1k2
+import p3b1
+import parameter_set as prs
 
 from collections import defaultdict
 
-# TODO: change the name to run_data
-import nt3_run_data as nt3d
-import p3b1_baseline_keras2 as p3b1k2
-import p3b1
-
-import parameter_set as prs
-
-import pandas as pd
-
-from sklearn.ensemble import RandomForestRegressor
+#from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ParameterGrid, ParameterSampler
 
+import pandas as pd
+import numpy as np
 import scipy as sp
 from scipy.stats.distributions import expon
 
-# =============================================================================
-# data are correctly reshaped but warning is present any, so suppress them all
-# =============================================================================
+# data are correctly reshaped but warning is present anyway, 
+#so suppress them all (bug in sklearn.optimize reported)
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 
+import logging
+logging.basicConfig(filename='mlskMBO.log',level=logging.DEBUG)
 
 # =============================================================================
-# CONFIGURATION stuff done here for now
+# CONFIGURATION done here for now
 # =============================================================================
 
 # if True, parameter dictionaries will be sent to nt3_baseline_keras2
 run_keras = True
+plots = True
 
+# Location of saved output
 output_dir = os.path.join(file_path, 'save')
-# TODO this is temporary
-output_dir = "/Users/johnbauer/Benchmarks/Pilot3/P3B1"
-output_subdirectory = 'save/experiment_0' 
-#output_subdirectory = 'save' 
+OUTPUT_SUBDIRECTORY = "experiment_0"
 
+# initial data will be read from here if present,
+# cached here if not
+cache_subdirectory = ""
+CACHE_DIR = os.path.join(file_path, 'save', cache_subdirectory)
+CACHE_FILE = os.path.join(CACHE_DIR, "P3B1_cache_0.csv")
 
-#config_file_path = os.path.abspath(os.path.join(paths[2]))
-# TODO: temporary measure
-config_file_path = output_dir
-config_file = os.path.join(config_file_path, 'p3b1_default_model.txt')
-# read in global default parametere configuration
-default_params = p3b1.read_config_file(config_file)
+# if there are no data in the cache, 
+# five the mumber of points to draw for the initial sample
+INITIAL_SAMPLE = 30
 
-# don't fit models with ridiculously large losses, as defined here
-# there is at least one keras run with a validation loss > 8 
-MAX_LOSS = 2
+# location of solr if used for results
+SOLR_URL = "http://localhost:8983/solr"
+
+config_file_path = os.path.join(*[file_path]+paths["P3B1"])
+CONFIG_FILE = os.path.join(config_file_path, 'p3b1_default_model.txt')
+# read in global default parameter configuration
+DEFAULT_PARAMS = p3b1.read_config_file(CONFIG_FILE)
+
+# don't include points with ridiculously large losses, as defined here
+# when fitting GPR model
+MAX_LOSS = 5
+
+PREFIX_SEP = "|"
 
 # the target is validation_loss, could be training_loss or runtime_hours
 TARGET = 'validation_loss'
 
 # =============================================================================
-# ParameterSet in case we need it ...
+# end of configuration
+# =============================================================================
+
+
+
+
+# =============================================================================
+# ParameterSet used in mlrMBO implementation for reference ...
 # =============================================================================
 
 # =============================================================================
-# p3b1R = """
 # param.set <- makeParamSet(
 #   makeNumericParam("learning_rate", lower= 0.00001, upper= 0.1 ),
 #   makeNumericParam("dropout", lower= 0, upper= 0.9 ),
@@ -125,84 +149,482 @@ TARGET = 'validation_loss'
 #   makeDiscreteParam("batch_size", values = c(16,32,64,128,256)),
 #   makeIntegerParam("epochs", lower = 5, upper = 50)
 # )
-# """
+# =============================================================================
+
+# =============================================================================
+# Global variables for ParameterGrid and ParameterSet
 # =============================================================================
 batch_size = [16, 32, 64, 128, 256]
 #activation = ["softmax", "elu", "softplus", "softsign", "relu", "tanh", "sigmoid", "hard_sigmoid", "linear"]
 #optimizer = ["adam", "sgd", "rmsprop", "adagrad", "adadelta","adamax","nadam"]
-
-# TODO: added values corresponding to default parameter values
-# because decode_dummies was messing up
 shared_nnet_spec = ["400", "500", "600", "700", "1200"]
-ind_nnet_spec = ["400:400:400", "600:600:600", "1200, 1200:1200, 1200:1200, 1200"]
-
-
-ps = prs.ParameterSet()
-
-ps.add(prs.DiscreteParameter("batch_size", batch_size))
-ps.add(prs.IntegerParameter("epochs", 5, 50))
-#ps.add(prs.DiscreteParameter("activation", activation))
-#ps.add(prs.DiscreteParameter("optimizer", optimizer))
-ps.add(prs.NumericParameter("dropout", 0.0, 0.9))
-ps.add(prs.NumericParameter("learning_rate", 0.00001, 0.1))
-ps.add(prs.DiscreteParameter("shared_nnet_spec", shared_nnet_spec))
-ps.add(prs.DiscreteParameter("ind_nnet_spec", ind_nnet_spec))
-
+ind_nnet_spec = ["400:400:400", "600:600:600", "1200, 1200:1200, 1200:1200, 1200"]  
+      
 # =============================================================================
-# DATA
+# ParameterGrid used for initial keras runs
 # =============================================================================
-
-# =============================================================================
-# Create a ParameterSet, construct initial parameter grid,
-# generate parameter dicitionaries,
-# run keras on each,
-# recover the output from JSON logs or solr,
-# ... retrieve the result from earlier runs
-# =============================================================================
-
-# =============================================================================
-# TODO: move this to nt3_run_data
-# =============================================================================
-
-
-# coerce data into correct types in dataframe
-float64 = 'float64'
-int64 =  'int64'
-pdtypes = {'batch_size': int64,
-           'dropout': float64,
-           'epochs': int64,
-           'learning_rate': float64,
-           'runtime_hours' : float64,
-           'training_loss' : float64,
-           'validation_loss' : float64
-           }
-
-def get_p3b1_data(output_dir=output_dir,
-             subdirectory=output_subdirectory,
-             dtype=pdtypes,
-             from_csv=False):
-    """Assumes json log files from a previous run are available
-
-    If json logs are in output_subdirectory, call with from_csv=False
-    Otherwise it will read cached data from a previous run from a csv file
-    """
-
-    if from_csv:
-        data = pd.read_csv("p3b1_initial_data.csv", dtype=dtype)
-    else:
-        p3b1_data = nt3d.P3B1RunData(output_dir=output_dir,
-                                   subdirectory=output_subdirectory)
-        p3b1_data.add_all()
-        #data = p3b1_data.dataframe
-        data = p3b1_data.data
+def p3b1_parameter_grid():
+    """Utility function to encapsulate ParameterGrid definition"""
     
-    data = pd.DataFrame(data)
-    data = data[data.validation_loss < MAX_LOSS]
-    return data
+    gdict = {"batch_size" : batch_size,
+             "epochs" : [5, 25, 50],
+             "dropout" : [0.05, 0.20, 0.50],
+             "learning_rate" : [0.01, 0.05, 0.1],
+             "shared_nnet_spec" : shared_nnet_spec,
+             "ind_nnet_spec" : ind_nnet_spec
+            }
+    
+    pg = ParameterGrid(gdict)
+    return pg
 
-data = get_p3b1_data(from_csv=False)
+# =============================================================================
+# ParameterSet used for focus search after model fit
+# =============================================================================
+def p3b1_parameter_set(): 
+    """Utility function to encapsulate ParameterSet definition"""
+    
+    ps = prs.ParameterSet()
+    
+    # switching batch_size to NumericList to enforce integer validation
+    #ps.add(prs.DiscreteParameter("batch_size", batch_size))
+    ps.add(prs.NumericListParameter("batch_size", batch_size))
+    ps.add(prs.IntegerParameter("epochs", 5, 50))
+    #ps.add(prs.DiscreteParameter("activation", activation))
+    #ps.add(prs.DiscreteParameter("optimizer", optimizer))
+    ps.add(prs.NumericParameter("dropout", 0.0, 0.9))
+    ps.add(prs.NumericParameter("learning_rate", 0.00001, 0.1))
+    ps.add(prs.DiscreteParameter("shared_nnet_spec", shared_nnet_spec))
+    ps.add(prs.DiscreteParameter("ind_nnet_spec", ind_nnet_spec))
+    
+    return ps
 
-print(data.columns)
+# =============================================================================
+# Object oriented repackaging of functionality
+# =============================================================================
+class Run_P3B1(object):
+    """Runs p3b1_baseline_keras2 on given parameters, accumulates results
+    
+    run(): calls keras, which also generates run.***.json log files
+    in save/output_subdirectory, optionally sends results to solr
+    """
+    # class variable for convenience id
+    _run_id = 0
+    
+    def __init__(self,
+                 default_params=DEFAULT_PARAMS,
+                 output_subdirectory=OUTPUT_SUBDIRECTORY,
+                 solr_url=None
+                 ):
+        """
+        default_params:  typically read from p3b1_default_model.txt
+        output_subdirectory: passed to keras as 'save' parameter
+            output will be saved in 'save/output_subdirectory'
+        solr_url: if present, passed to keras as 'solr', triggers callback
+        which submits json results to solr
+        """
+        self.default_params = default_params
+        self.output_subdirectory = output_subdirectory
+        self.solr_url = solr_url
+        self.data = defaultdict(list)
+        self._df = None
+        
+    def run(self, params, run_id=None):
+        if run_id is None:
+            run_id = Run_P3B1._run_id
+        run_params = self._parameter_update(run_id, params)
+        self.data['run_id'].append(run_id)
+        # TODO: switch print statements over to log files
+        logging.debug("*"*80)
+        logging.debug("* Parameters: ")
+        for k, v in params.items():
+            logging.debug("{:25}{}".format(k, v))
+            self.data[k].append(v)
+        logging.debug("*"*80)
+        avg_loss = p3b1k2.do_n_fold(run_params)
+        logging.debug("Average Loss: {}".format(avg_loss))
+        self.data['validation_loss'].append(avg_loss)
+        Run_P3B1._run_id += 1
+        return avg_loss
+        
+    def _parameter_update(self, run_id, params):
+        run_params = self.default_params.copy()
+        run_params.update(params)
+        # TODO: use os.path.join
+        run_params['save'] = 'save/{}'.format(self.output_subdirectory)
+        if self.solr_url:
+            run_params['solr_root'] = self.solr_url
+        run_params['run_id'] = "{}".format(run_id)
+        # temporary workaround for P3B1 using a list of integers
+        # force integer value, don't yet enforce list membership
+        run_params['batch_size'] = int(run_params['batch_size'])
+        return run_params
+
+    @classmethod
+    def run_id_start(cls, start_value):
+        """Specify a starting value for run_id, for example when re-starting
+        
+        Avoid overwriting previous log files by keeping track of run_id
+        """
+        cls._run_id = start_value
+        
+    def _dataframe(self):
+        """Converts the accumulated parameter values and results into a dataframe"""
+        data = self.data
+        run_id = data['run_id']
+        df = pd.DataFrame(data, index=run_id)
+        self.data = defaultdict(list)
+        # TODO: decide if this is worth keeping track of everywhere
+        df.drop('run_id', axis=1, inplace=True)
+        if self._df is not None:
+            self._df = pd.concat((self._df, df))
+        else:
+            self._df = df
+        return self._df
+    
+    dataframe = property(_dataframe, None, None, "Lazy evaluation of dataframe")
+    
+    def __add__(self, other):
+        # dataframe will ensure cached data are included in the dataframe
+        # TODO: type checking, column checking, ...
+        # TODO: consider import copy, copy.copy(self)
+        run_sum = Run_P3B1(self.default_params, self.output_subdirectory, self.solr_url)
+        if isinstance(other, Run_P3B1):
+            df = pd.concat((self.dataframe, other.datframe))
+            run_sum._df = df
+        elif isinstance(other, pd.DataFrame):
+            df = pd.concat((self.dataframe, other))
+            run_sum._df = df
+        elif isinstance(other, (defaultdict, dict)):
+            assert all(isinstance(v, list) for v in other.values()), "Expecting a dict of lists"
+            run_sum.data = other
+            run_sum._df = self.dataframe
+            df = run_sum.dataframe
+        else:
+            logging.error("incompatible types")
+            assert False, "Add: type unsupported by Run_P3B1"
+        return run_sum
+            
+# =============================================================================
+#     def __add__(self, other):
+#         assert set(self.data.keys() == set(other.data.keys())), "Inconsistent data"
+#         data = defaultdict(list)
+#         data0 = self.data
+#         data1 = other.data
+#         for k, v in data0.keys():
+#             data[k] = data0[k] + data1[k]
+#         run_sum = Run_P3B1(self.default_params, self.output_subdirectory, self.solr_url)
+#         run_sum.data = data
+#         return run_sum
+# =============================================================================
+ 
+        
+        
+# =============================================================================
+# Evaluate average validation loss in keras
+# =============================================================================
+def run_p3b1(params):
+    """Run p3b1_baseline_keras2
+    
+    params: dictionary of parameter values
+    Returns: average loss
+    """
+    # TODO: switch print statements over to log files
+    logging.debug("*"*80)
+    logging.debug("* Parameters: ")
+    for k, v in params.items():
+        logging.debug("{:25}{}".format(k, v))
+    logging.debug("*"*80)
+    avg_loss = p3b1k2.do_n_fold(params)
+    logging.debug("Average Loss: {}".format(avg_loss))
+    return avg_loss
+
+# =============================================================================
+# Supply default values for parameters not included in parameter grid/set
+# =============================================================================
+# TODO: current setup assumes configuration through global variables,
+# although it does allow overrides.  Find a less sleazy way to set this up
+def param_update(run_id, params, default_params=DEFAULT_PARAMS, output_subdirectory=OUTPUT_SUBDIRECTORY):
+    run_params = default_params.copy()
+    run_params.update(params)
+    run_params['save'] = 'save/{}'.format(output_subdirectory)
+    #run_params['solr_root'] = "http://localhost:8983/solr"
+    run_params['run_id'] = "{}".format(run_id)
+    return run_params
+
+# =============================================================================
+# Generate initial data from a parameter grid, or cached from an earlier run
+# =============================================================================
+def initialize_data(cache_file=CACHE_FILE, sample=INITIAL_SAMPLE):
+    """Create new data, or read from cache if present
+    
+    If no cache file is found, draws samples from a parameter grid
+    Runs p3b1_baseline_keras2, writes results to cache
+    (call with cache_file=None to omit saving results)
+    Returns: pandas dataframe containing parameter values and average loss
+    """
+    # coerce data into correct types in dataframe
+    float64 = 'float64'
+    int64 =  'int64'
+    category = 'category'
+    pdtypes = {'batch_size': int64,
+               'dropout': float64,
+               'epochs': int64,
+               'learning_rate': float64,
+               'shared_nnet_spec' : category,
+               'ind_nnet_spec' : category,
+               'runtime_hours' : float64,
+               'training_loss' : float64,
+               'validation_loss' : float64
+               }
+    # TODO: consider .astype for _nnet_spec
+    # s_cat = s.astype("category", categories=["b","c","d"], ordered=False)
+    try:
+        # read the cached data, if present
+        logging.debug("Reading data from cache: {}".format(cache_file))
+        df = pd.read_csv(cache_file, dtype=pdtypes)
+        #df['shared_nnet_spec'] = df['shared_nnet_spec'].astype("category", categories=shared_nnet_spec)
+        #df['ind_nnet_spec'] = df['ind_nnet_spec'].astype("category", categories=ind_nnet_spec)
+    except:
+        # create the initial data
+        logging.debug("Generating data from keras, sampling {} parameters".format(sample))
+        data = defaultdict(list)
+        param_grid = p3b1_parameter_grid()
+        for run_id, i in enumerate(np.random.choice(len(param_grid), sample, replace=False)):
+            params = param_grid[i]
+            run_params = param_update(run_id, params)
+            avg_loss = run_p3b1(run_params)
+            for k, v in params.items():
+                data[k].append(v)
+            data['validation_loss'].append(avg_loss)
+        df = pd.DataFrame(data) #, dtype=pdtypes)
+        # write to cache for next time
+        if cache_file:
+            df.to_csv(cache_file)
+    return df
+  
+# =============================================================================
+# Gaussian Process Regression
+# =============================================================================
+def gpr(data_df, X_columns, target=TARGET, dummies=['shared_nnet_spec', 'ind_nnet_spec']):
+    """Gaussian Process Regression model
+    
+    data_df:    dataframe with data to model
+    X_columns:  list of parameter names to use as predictors
+    target:     name of field to predict
+    dummies:    list of parameters to be treated as categorical
+                creates full-rank indicator variables using pandas get_dummies
+    """
+    # TODO: move all the print statements over to log
+    X = data_df[X_columns]
+    y = data_df[target]
+    
+    # compare to GPR minimum below...
+    yidxmin = y.idxmin()
+    
+    y_star = y.iloc[yidxmin]
+    X_star = X.iloc[yidxmin]
+    
+    logging.debug("Best observed value")
+    logging.debug("Index: {}".format(yidxmin))
+    logging.debug(y_star)
+    logging.debug("Parameter values for best observed:")
+    logging.debug(X_star)
+    
+    # Create auxiliary dataframe with dummy-coded indicators 
+    if dummies:
+        #data_with_dummies = prs.DataFrameWithDummies(X, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
+        #Xd = data_with_dummies.dataframe
+        Xd = pd.get_dummies(X, columns=dummies, prefix_sep=PREFIX_SEP) if dummies else df
+    else:
+        Xd = X
+    
+    # standardize the data
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(Xd)
+    # CAREFUL X and Xd are DataFrame objects but Xs is a numpy array
+    # could convert to dataframe here
+    
+    # n.b. could scale y but for now handle y with normalize_y in GPR
+    k = ConstantKernel(1.0, (0.001, 1000.0)) * RBF(1.0, (0.01, 100.0))
+    gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, n_restarts_optimizer=20, normalize_y=True)
+    gpr.fit(Xs, y)
+    
+    logging.debug("Fit Gaussian Process Regression:\n", gpr.kernel_.get_params())
+    
+    gprpred = pd.DataFrame({"pred" : gpr.predict(Xs)})
+    logging.debug("GPR predictions on training data")
+    logging.debug(gprpred.describe())
+    gpidx = gprpred.idxmin()
+    y_gstar = y.iloc[gpidx]
+    logging.debug("observed value corresponding to best prediction on training data")
+    logging.debug(y_gstar)
+    X_gstar = X.iloc[gpidx]
+    logging.debug("Parameter values for best prediction in training data")
+    logging.debug(X_gstar)
+    #if plots:
+    #    gprpred.plot(title="GPR predictions on training data")
+    
+    # Obtain bounds after standardization
+    lower_bound = Xs.min(axis=0)
+    upper_bound = Xs.max(axis=0)
+    
+    bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
+    
+    # using location of best actual value (yidxmin) as starting point
+    # could try alternative starting points and return the best
+    # preliminary tests on NT3 did not show local minima are a problem
+    # there is a problem with optimize which can generate Deprecation Warning
+    # even when the starting point is 2d and has the correct shape
+    start_val = Xs[yidxmin].reshape(-1,  1)
+    # Fit the GPR model
+    result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
+    rx = scaler.inverse_transform(result.x)
+    
+    columns = Xd.columns
+    d = {col : val for col, val in zip(columns, rx)}
+    
+    # the dictionary will need to be decoded by a ParameterSet object
+    return d
+
+
+def gpr_search(data_df, X_columns, target=TARGET, 
+               dummies=['shared_nnet_spec', 'ind_nnet_spec'],
+               sample=100):
+    """Gaussian Process Regression model
+    
+    data_df:    dataframe with data to model
+    X_columns:  list of parameter names to use as predictors
+    target:     name of field to predict
+    dummies:    list of parameters to be treated as categorical
+                creates full-rank indicator variables using pandas get_dummies
+    sample:     number of random starting points
+    """
+    # TODO: move all the print statements over to log
+    X = data_df[X_columns]
+    y = data_df[target]
+    
+    # compare to GPR minimum below...
+    yidxmin = y.idxmin()
+    
+    y_star = y.iloc[yidxmin]
+    X_star = X.iloc[yidxmin]
+    
+    logging.debug("Best observed value")
+    logging.debug("Index: {}".format(yidxmin))
+    logging.debug(y_star)
+    logging.debug("Parameter values for best observed:")
+    logging.debug(X_star)
+    
+    # Create auxiliary dataframe with dummy-coded indicators 
+    if dummies:
+        #data_with_dummies = prs.DataFrameWithDummies(X, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
+        #Xd = data_with_dummies.dataframe
+        Xd = pd.get_dummies(X, columns=dummies, prefix_sep=PREFIX_SEP) if dummies else df
+    else:
+        Xd = X
+    
+    # standardize the data
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(Xd)
+    # CAREFUL X and Xd are DataFrame objects but Xs is a numpy array
+    # could convert to dataframe here
+    
+    # n.b. could scale y but for now handle y with normalize_y in GPR
+    k = ConstantKernel(1.0, (0.001, 1000.0)) * RBF(1.0, (0.01, 100.0))
+    gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, n_restarts_optimizer=20, normalize_y=True)
+    gpr.fit(Xs, y)
+    
+    logging.debug("Fit Gaussian Process Regression:\n", gpr.kernel_.get_params())
+    
+    gprpred = pd.DataFrame({"pred" : gpr.predict(Xs)})
+    logging.debug("GPR predictions on training data")
+    logging.debug(gprpred.describe())
+    gpidx = gprpred.idxmin()
+    y_gstar = y.iloc[gpidx]
+    logging.debug("observed value corresponding to best prediction on training data")
+    logging.debug(y_gstar)
+    X_gstar = X.iloc[gpidx]
+    logging.debug("Parameter values for best prediction in training data")
+    logging.debug(X_gstar)
+    #if plots:
+    #    gprpred.plot(title="GPR predictions on training data")
+    
+    # Obtain bounds after standardization
+    lower_bound = Xs.min(axis=0)
+    upper_bound = Xs.max(axis=0)
+    
+    bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
+    
+    # using location of best actual value (yidxmin) as starting point
+    # could try alternative starting points and return the best
+    # preliminary tests on NT3 did not show local minima are a problem
+    # there is a problem with optimize which can generate Deprecation Warning
+    # even when the starting point is 2d and has the correct shape
+    columns = Xd.columns
+    # trying to track down bizarrely duplicated columns ...
+    from collections import Counter
+    columncount = Counter(columns)
+    logging.debug("columns:", columns)
+    logging.debug(columncount)
+    result_data = defaultdict(list)
+    for i in range(gprpred.shape[0]):
+        # TODO: pick a float between 0 and 1 for each value
+        # rescale using bounds as range, i.e. r * (upper - lower) + lower
+        start_val = Xs[i].reshape(-1,1)
+        #start_val = np.array(start_val).reshape(-1, 1)
+        #start_val = Xs[yidxmin].reshape(-1,  1)
+    # Fit the GPR model
+        result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
+        rx = scaler.inverse_transform(result.x)
+        pred = gpr.predict(result.x)
+        for col, val in zip(columns, rx):
+            result_data[col].append(val)
+        result_data['gpr_optimum'].append(pred[0])
+    for k , v in result_data.items():
+        logging.debug(k, len(v))
+    # the dictionary will need to be decoded by a ParameterSet object
+    result_data = pd.DataFrame(result_data)
+    #result_data = pd.concat((result_data, gprpred), axis=1)
+    result_idx = result_data.gpr_optimum.idxmin()
+    result_star = result_data.iloc[result_idx]
+    result_star = result_star[columns]
+    opt = {col : val for col, val in zip(columns, result_star)}
+    return opt
+# =============================================================================
+#     import random
+#     ranges = [upper - lower for lower, upper in bounds]
+#     columns = Xd.columns
+#     result_data = defaultdict(list)
+#     for i in range(sample):
+#         # TODO: pick a float between 0 and 1 for each value
+#         # rescale using bounds as range, i.e. r * (upper - lower) + lower
+#         start_val = [random.random() * ranges[i] + bounds[i][0] for i in range(Xs.shape[1])]
+#         start_val = np.array(start_val).reshape(-1, 1)
+#         #start_val = Xs[yidxmin].reshape(-1,  1)
+#     # Fit the GPR model
+#         result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
+#         rx = scaler.inverse_transform(result.x)
+#         pred = gpr.predict(result.x)
+#         for col, val in zip(columns, rx):
+#             result_data[col].append(val)
+#         result_data['validation_loss'].append(pred[0]) 
+#     # the dictionary will need to be decoded by a ParameterSet object
+#     return pd.DataFrame(result_data), gprpred
+# =============================================================================
+
+# =============================================================================
+# Construct a representation of the parameter set
+# =============================================================================
+ps = p3b1_parameter_set()
+
+# =============================================================================
+# Get the data
+# =============================================================================
+data = initialize_data()
+
+logging.debug("Data for GPR")
+logging.debug(data.columns)
+logging.debug(data.describe())
 
 # columns to use as predictors in the model
 # non-numeric columns will be recoded as as indicator variables for GPR
@@ -211,262 +633,195 @@ X_col = ['batch_size', 'dropout', 'epochs', 'learning_rate',
 # columns omitted from X: ['run_id', 'runtime_hours', 'training_loss']
 assert all(x in data.columns for x in X_col), "invalid column"
 
-# preliminary input for modelling
-X = data[X_col]
-y = data[TARGET]
-
-
 # =============================================================================
-# rfr = RandomForestRegressor(oob_score=True)
-# rfr.fit(X, y)
-# 
-# pred = pd.DataFrame({"pred" : rfr.predict(X),
-#                      "oob_pred" : rfr.oob_prediction_,
-#                      "y" : y })
-# 
-# importance = [z for z in zip(data.columns, rfr.feature_importances_)]
-# importance = sorted(importance, key=lambda x : x[1], reverse=True)
-# print("Feature Importances")
-# print("{:20}\t{:5}".format("Parameter:", "Value:"))
-# for param, imp in importance[:10]:
-#     print("{:20}\t{:5.3f}".format(param, imp))
+# Fit Gaussian Process Regression, optimize the model, return recommended
+# parameter dictionary
 # =============================================================================
-
-yidxmin = y.idxmin()
-
-y_star = y.iloc[yidxmin]
-X_star = X.iloc[yidxmin]
-
-print("Best observed value")
-print("Index: {}".format(yidxmin))
-print(y_star)
-print("Parameter values for best observed:")
-print(X_star)
-
+d = gpr_search(data, X_col, TARGET, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
+logging.debug(d)
 # =============================================================================
-# Get estimate of std error for predictions from model estimators
+# The parameters need to be decoded to remove dummies, also validated
+# to enforce bounds, and the correct data types(int or float)
 # =============================================================================
-# n.b. lambda is a keyword so lmbda vector of values
-def LCB(forest, X, number_to_sample, use_min=False):
-    est = forest.estimators_
-    forestpreds = { "pred_{}".format(i) : est.predict(X) for i, est in enumerate(est)}
-    forestpreds = pd.DataFrame(forestpreds)
-    preds = pd.DataFrame({"pred" : forest.predict(X),
-                          "stds" : forestpreds.std(axis=1)})
-    if use_min:
-        preds['pred'] = forestpreds.min(axis=1)    
-    lmbda = (ParameterSampler({ "lm" : expon()}, n_iter=number_to_sample))
-    lcb = pd.DataFrame({ "lcb_{}".format(i) : preds.pred - li["lm"] * preds.stds for i, li in enumerate(lmbda) })
-    # TODO: include X in lcb, to look up parameters from selected values
-    return lcb
+dd = ps.decode_dummies(d)
+# temporary workaround, 'batch_size' is a list of integers
+# make it an integer, but don't force enforc list membership
+#d['batch_size'] = int(d.get('batch_size', 16))
 
-
-# =============================================================================
-# Preliminary attempt at Gaussian Process Regresssion
-# =============================================================================
-
-# =============================================================================
-# Create auxiliary dataframe with dummy-coded indicators for dense, conv...
-# =============================================================================
-
-# TODO: rework DataFrameWithDummies to implement fit, transform
-data_with_dummies = prs.DataFrameWithDummies(X, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
-Xd = data_with_dummies.get_dataframe()
-
-# standardized data
-scaler = StandardScaler()
-Xs = scaler.fit_transform(Xd)
-# CAREFUL X and Xd are DataFrame objects but Xs is a numpy array
-# could convert to dataframe here
-
-# n.b. could scale y but for now handle y with normalize_y in GPR
-
-k = ConstantKernel(1.0, (0.001, 1000.0)) * RBF(1.0, (0.01, 100.0))
-gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, n_restarts_optimizer=20, normalize_y=True)
-gpr.fit(Xs, y)
-
-print(gpr.kernel_.get_params())
-
-gprpred = pd.DataFrame({"pred" : gpr.predict(Xs)})
-print("GPR predictions")
-print(gprpred.describe())
-gpidx = gprpred.idxmin()
-y_gstar = y.iloc[gpidx]
-print("observed value corresponding to best prediction")
-print(y_gstar)
-X_gstar = X.iloc[gpidx]
-print("Parameter values for best prediction")
-print(X_gstar)
-gprpred.plot(title="GPR predictions")
-
-# =============================================================================
-# Xgs = pd.DataFrame(scaler.transform(Xgrid), columns=Xgrid.columns)
-# grid_pred, grid_se = gpr.predict(Xgs, return_std=True)
-# gprpredgrid = pd.DataFrame({"pred_gpr" : grid_pred, "pred_se" : grid_se})
-# print("GPR predictions on larger grid")
-# print(gprpredgrid.describe())
-# 
-# ggpidx = gprpredgrid.pred_gpr.idxmin()
-# X_ggstar = Xgrid.iloc[ggpidx]
-# pred_ggstar = gprpredgrid.pred_gpr.iloc[ggpidx] #gpr.predict(Xgs.iloc[ggpidx])
-# print("Predicted GPR minimum")
-# print(pred_ggstar)
-# print("Parameter values at GPR-pred min")
-# print(X_ggstar)
-# gprpredgrid.plot(title="GPR predictions on expanded grid")
-# =============================================================================
-
-
-# =============================================================================
-# Get estimate of std error for predictions from model
-# =============================================================================
-# n.b. lambda is a keyword so lmbda vector of values
-def GPR_LCB(gpr, X, number_to_sample):
-    # X should be scaled!!!
-    pred, se = gpr.predict(X, return_std=True)
-    preds = pd.DataFrame({"pred" : pred, "se" : se})
-    lmbda = (ParameterSampler({ "lm" : expon()}, n_iter=number_to_sample))
-    lcb = pd.DataFrame({ "lcb_{}".format(i) : preds.pred - li["lm"] * preds.se for i, li in enumerate(lmbda) })
-    return lcb
-
-gprLCB = GPR_LCB(gpr, Xs, 5)
-print("GPR Lower Confidence Bounds")
-gprLCB.describe()
-gprLCB.plot(title="GPR Lower Confidence Bounds")
-
-print("Parameter values of LCB selected best point")
-print(X.iloc[gprLCB.idxmin()])
-
-#file_path = os.path.dirname(os.path.realpath(__file__))
-#config_file = os.path.join(file_path, 'nt3_default_model.txt')
+## input for modelling
+#X = data[X_col]
+#y = data[TARGET]
 #
-#default_params = nt3b.read_config_file(config_file)
-
-candidate_LCB = set()
-for col in gprLCB.columns:
-    gprsorted = gprLCB.sort_values(by=col)
-    ids = gprsorted.head(15).index
-    #print(col, ids)
-    candidate_LCB.update(ids)
-    
-def param_update(params, default_params, run_id, output_subdirectory='exp'):
-    run_params = default_params.copy()
-    run_params.update(params)
-    run_params['save'] = 'save/{}'.format(output_subdirectory)
-    #run_params['solr_root'] = "http://localhost:8983/solr"
-    run_params['run_id'] = "run.{}.json".format(run_id)
-    return run_params
-
-# =============================================================================
-# Extract the candidates from Lower Confidence Bounds
-# However, for GPR on NT3 the standard error is very uniform
-# so these are could just as well be obtained as the points with the lowest loss
-# For Random Forest Regression, evaluate on many points of a grid
-# =============================================================================
-# TODO: stop looking up index in original!  Does not generalize
-# give them unique ids by specifying a start value
-# =============================================================================
-# start_id = 5000
-# for i, c in enumerate(candidate_LCB):
-#     d = dict(X.iloc[c])
-#     # give them unique run_id values in case they actually get used...
-#     params = param_update(d, default_params, i+start_id, output_subdirectory)
-#     # TODO: translate categorical variables' parameters back to original names
-#     print("="*80)
-#     print("index: {:4d} loss: {}".format(c, y.iloc[c]))
-#     print(params)
-#     # since these already have known losses, don't send to keras
-#     #nt3b.run(params)
-# =============================================================================
-
-# this needs to be automated, probably use a dict or OrderedDict
-# Xd requires 14 columns worth of bounds
-# (alternatively, use a Scaler object from sklearn.preprocessing
-lower_bound = Xs.min(axis=0)
-upper_bound = Xs.max(axis=0)
-
-bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
-
-# using location of best actual value (yidxmin) as starting point
-start_val = Xs[yidxmin].reshape(-1,  1)
-result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
-rx = scaler.inverse_transform(result.x)
-columns = Xd.columns
-d = {col : val for col, val in zip(columns, rx)}
-d = ps.decode_dummies_dict(d)
-# workaround for batch_size requiring int but using DiscreteParameter
-d['batch_size'] = int(d.get('batch_size', 16))
-
-# TODO: using a random draw from the parameter set as starting point
-#start_val = ps.draw()
-# TODO: set up parameter set with fit, transform, inverse_transform or comparable
-#start_val = ps.transform(start_val)
-#result = sp.optimize.minimize(gpr.predict, Xs[yidxmin].reshape(-1,  1), method='L-BFGS-B', bounds=bounds)
+## compare to GPR minimum below...
+#yidxmin = y.idxmin()
+#
+#y_star = y.iloc[yidxmin]
+#X_star = X.iloc[yidxmin]
+#
+#print("Best observed value")
+#print("Index: {}".format(yidxmin))
+#print(y_star)
+#print("Parameter values for best observed:")
+#print(X_star)
+#
+## =============================================================================
+## Gaussian Process Regresssion
+## =============================================================================
+#
+## =============================================================================
+## Create auxiliary dataframe with dummy-coded indicators for dense, conv...
+## =============================================================================
+#
+## TODO: rework DataFrameWithDummies to implement fit, transform
+#data_with_dummies = prs.DataFrameWithDummies(X, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
+#Xd = data_with_dummies.dataframe
+#
+## =============================================================================
+## standardize the data
+## =============================================================================
+#scaler = StandardScaler()
+#Xs = scaler.fit_transform(Xd)
+## CAREFUL X and Xd are DataFrame objects but Xs is a numpy array
+## could convert to dataframe here
+#
+## n.b. could scale y but for now handle y with normalize_y in GPR
+#
+#k = ConstantKernel(1.0, (0.001, 1000.0)) * RBF(1.0, (0.01, 100.0))
+#gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, n_restarts_optimizer=20, normalize_y=True)
+#gpr.fit(Xs, y)
+#
+#print("Fit Gaussian Process Regression:\n", gpr.kernel_.get_params())
+#
+#gprpred = pd.DataFrame({"pred" : gpr.predict(Xs)})
+#print("GPR predictions on training data")
+#print(gprpred.describe())
+#gpidx = gprpred.idxmin()
+#y_gstar = y.iloc[gpidx]
+#print("observed value corresponding to best prediction on training data")
+#print(y_gstar)
+#X_gstar = X.iloc[gpidx]
+#print("Parameter values for best prediction ib training data")
+#print(X_gstar)
+#if plots:
+#    gprpred.plot(title="GPR predictions on training data")
+#
+## this needs to be automated, probably use a dict or OrderedDict
+## Xd requires 14 columns worth of bounds
+## (alternatively, use a Scaler object from sklearn.preprocessing
+#lower_bound = Xs.min(axis=0)
+#upper_bound = Xs.max(axis=0)
+#
+#bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
+#
+## using location of best actual value (yidxmin) as starting point
+#start_val = Xs[yidxmin].reshape(-1,  1)
+#result = sp.optimize.minimize(gpr.predict, start_val, method='L-BFGS-B', bounds=bounds)
 #rx = scaler.inverse_transform(result.x)
 #columns = Xd.columns
 #d = {col : val for col, val in zip(columns, rx)}
-#d = ps.decode_dummies_dict(d)
+#d = ps.decode_dummies(d)
+# workaround for batch_size requiring int but using DiscreteParameter
+#d['batch_size'] = int(d.get('batch_size', 16))
 
-
-# TODO: again temporary measure
-output_subdirectory = "save/experiment_1"
 
 # =============================================================================
 # Begin amassing a bunch of candidates, starting with the GPR recommendation
 # =============================================================================
 run_params = []
-params = param_update(d, default_params, len(run_params), output_subdirectory)
-print("="*80, "\nStarting (current best) parameters:\n", params)
-run_params.append(params)
-#nt3b.run(params)
-
-## use candidate_LCB as a convenient set of starting points
-#results = []
-#for c in candidate_LCB:
-#    result = sp.optimize.minimize(gpr.predict, Xs[c].reshape(-1,  1), method='L-BFGS-B', bounds=bounds)
-#    rx = scaler.inverse_transform(result.x)
-#    columns = Xd.columns
-#    d = {col : val for col, val in zip(columns, rx)}
-#    results.append(ps.decode_dummies_dict(d))
-#    d['batch_size'] = int(d.get('batch_size', 16))
-#    print(results[-1])
     
-# =============================================================================
-# Construct new parameter sets focussed at various degrees on the best so far
-# =============================================================================
-# more draws at higher levels will explore more broadly
-# more layers will narrow the focus tightly around the initial point
-for i in range(3):
-    focus = ps.focus(d)
-    for j in range(3):
-        params = param_update(focus.draw(), default_params, len(run_params), output_subdirectory)
+runner = Run_P3B1() # default initialization controlled by Configuration
+runner.run_id_start(data.shape[0])
+loss = runner.run(dd)
+df = runner.dataframe
+df.describe()
+
+for i in range(2):
+    focus1 = ps.focus(dd)
+    for j in range(2):
+        params = focus1.draw()
         run_params.append(params)
-        focus = ps.focus(d)
+        focus2 = focus1.focus(dd)
         for k in range(2):
-            params = param_update(focus.draw(), default_params, len(run_params), output_subdirectory)
+            params = focus2.draw()
             run_params.append(params)
-            
-print("="*80, "\nDefault Parameters:\n", default_params)
-avg_losses = []
+
 for params in run_params:
-    print("*"*80)
-    print("* Parameters: ")
-    for k, v in params.items():
-        print("{:25}{}".format(k, v))
-    print("*"*80)
-    if run_keras:
-        # finally do some work!
-        avg_loss = p3b1k2.do_n_fold(params)
-        print("Average Loss: {}".format(avg_loss))
-        avg_losses.append(avg_loss)
-        # TODO: figure out where to save the avg_losses
+    loss = runner.run(params)
+df = runner.dataframe
+df.describe()          
 
 # =============================================================================
-# Now gather up the results from output_subdirectory and repeat
+# # =============================================================================
+# # Construct new parameter sets focussed at various degrees on the best so far
+# # =============================================================================
+# # more draws at higher levels will explore more broadly
+# # more layers will narrow the focus tightly around the initial point
+# for i in range(1):
+#     focus1 = ps.focus(d)
+#     for j in range(1):
+#         params = focus1.draw()
+#         run_params.append(params)
+#         focus2 = focus1.focus(d)
+#         for k in range(1):
+#             params = focus2.draw()
+#             run_params.append(params)
+#             
+# print("="*80, "\nDefault Parameters:\n", DEFAULT_PARAMS)
+# avg_losses = []
+# data = defaultdict(list)
+# for i, params in enumerate(run_params):
+#     run = param_update(i, params)
+#     avg_loss = run_p3b1(run)
+#     avg_losses.append(avg_loss)
+#     for k, v in params.items():
+#         data[k].append(v)
+#     data['validation_loss'].append(avg_loss)
+# 
+# new_df = pd.DataFrame(data) #, dtype=pdtypes)
+# print(new_df.describe())
+# cache_dir = os.path.join(file_path, 'save')
+# new_cache_file = os.path.join(cache_dir, "P3B1_cache_1.csv")
+# new_df.to_csv(new_cache_file)
+# 
+# # =============================================================================
+# # Now gather up the results from output_subdirectory and repeat
+# # =============================================================================
+# #new_p3b1_data = nt3d.P3B1RunData(output_dir=output_dir,
+# #                           subdirectory=OUTPUT_SUBDIRECTORY,
+# #                           pdtypes=pdtypes)
+# #new_p3b1_data.add_all()
+# ##new_data = nt3_data.dataframe
+# #new_data_dict = new_p3b1_data.data   
+# 
+# 
+# run_params_0 = run_params
+# # data can be recovered with pd.read_csv(new_cache_file)
+# run_params = []
+# for i in range(3):
+#     focus1 = ps.focus(d)
+#     for j in range(3):
+#         params = focus1.draw()
+#         run_params.append(params)
+#         focus2 = focus1.focus(d)
+#         for k in range(3):
+#             params = focus2.draw()
+#             run_params.append(params)
+#             
+# print("="*80, "\nDefault Parameters:\n", DEFAULT_PARAMS)
+# avg_losses = []
+# data = defaultdict(list)
+# for i, params in enumerate(run_params):
+#     run_params = param_update(i+1100, params)
+#     avg_loss = run_p3b1(run_params)
+#     avg_losses.append(avg_loss)
+#     for k, v in params.items():
+#         data[k].append(v)
+#     data['validation_loss'].append(avg_loss)
+# 
+# new_df = pd.DataFrame(data) #, dtype=pdtypes)
+# print(new_df.describe())
+# #cache_dir = os.path.join(file_path, 'save')
+# new_cache_file = os.path.join(cache_dir, "P3B1_cache_3.csv")
+# new_df.to_csv(new_cache_file)
+# 
 # =============================================================================
-new_p3b1_data = nt3d.P3B1RunData(output_dir=output_dir,
-                           subdirectory=output_subdirectory,
-                           pdtypes=pdtypes)
-new_p3b1_data.add_all()
-#new_data = nt3_data.dataframe
-new_data_dict = new_p3b1_data.data   

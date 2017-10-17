@@ -69,7 +69,7 @@ class ParameterSet(object):
         return "\n".join(str(param_obj) for param_obj in self._parameters.values())
 
     def decode_dummies(self, dummies):
-        """Dictionary has names of the form 'key_categoryvalue' 
+        """Dictionary has names of the form 'key|categoryvalue' 
         
         Each parameter picks out the  corresponding variables
         """
@@ -110,13 +110,15 @@ class Parameter(object):
     # also IntgerParameter should enforce int(value)
     def decode_dummies(self, dummies):
         """Picks out the variable corresponding to this parameter
+        
+        Also enforces validation
         """
         assert isinstance(dummies, dict), "Expecting a dictionary"
         value = dummies.get(self.key, None)
         if value is None:
             return {}
         else:
-            return {self.key : value}
+            return {self.key : self.validate(value)}
 
     def validate(self, value):
         """Override in subclass to provide a valid value"""
@@ -145,6 +147,12 @@ class FixedParameter(Parameter):
                 
 class DiscreteParameter(Parameter):
     def __init__(self, key, values, prefix_sep="|"):
+        """Enumerates a list of values
+        key:            parameter name
+        prefix_sep:     keys which contain prefix_sep are presumed to have
+                        been created by pandas get_dummies(), and will be 
+                        packed into a single column by decode_dummies()
+        """
         assert isinstance(values, (list, tuple)), "Expecting a list of values"
         #assert len(key.split("_")) == 1, "Design limitation: dummy root names cannot include '_'"
         super(DiscreteParameter, self).__init__(key)
@@ -152,6 +160,8 @@ class DiscreteParameter(Parameter):
         self.prefix_sep = prefix_sep
         names = OrderedDict()
         # n.b. names uses the string representation of each value in the key
+        # anticipate the names which will be created by get_dummies()
+        # to be used by decode_dummies()
         for val in self.values:
             names["{}{}{}".format(key, prefix_sep, val)] = val
         self._names = names
@@ -186,6 +196,7 @@ class DiscreteParameter(Parameter):
             dummies[self.values.index(value)] = 1.0
         return dummies
     
+    # TODO: get rid of _as_dict, _list variants soon, pretty sure they're dead
     # don't know if this will be needed or used yet...
     def get_dummies_as_dict(self, value):
         dummies = self.get_dummies_as_list(value)
@@ -208,6 +219,8 @@ class DiscreteParameter(Parameter):
     def decode_dummies(self, dummies):
         """dummies is a dict having names of the form 'key|categoryvalue' 
         
+        Typically dummies parameter would have been created by modelling data
+        after discrete parameters have been dummy-coded using | as separator
         Picks out the variables corresponding to this parameter
         Accumulates their values
         returns the category having the largest value
@@ -278,12 +291,33 @@ class DiscreteParameter(Parameter):
 #             if root == self.key:
 #                 #cat_value = "_".join(tokens[1:])
 #                 categoryvalue = self._names[key]
-#                 values[categoryvalue] = value
-#                 
+#                 o
 #         max_item = max(values.items(), key=lambda item: item[1])
 #         return {self.key : max_item[0]}
 # =============================================================================
-                
+class NumericListParameter(DiscreteParameter):
+    def __init__(self, key, values, prefix_sep="|", validation_type=int):
+        """Additional validation when using lists of numeric values
+        
+        Selects nearest value during validation, enforces type
+        validation_type:    callable, int or float
+        """
+        valid_values = [validation_type(val) for val in values]
+        super(NumericListParameter, self).__init__(key, valid_values, prefix_sep)
+        self.validation_type = validation_type
+
+    def validate(self, value):
+        """returns the nearest of the listed values, which have already been validated"""
+        #valid_val = self.validation_type(value)
+        valid_val = float(value) # more careful handling of rounding
+        difference = pd.Series([abs(valid_val - val) for val in self.values])
+        nearest = difference.idxmin()
+        return self.values[nearest]
+
+    def __str__(self):
+        return "NumericListParameter[{}], {}".format(self.key, self.values)
+    
+
 class NumericParameter(Parameter):
     def __init__(self, key, lower, upper):
         assert lower <= upper, "lower cannot exceed upper"
@@ -335,7 +369,7 @@ class IntegerParameter(Parameter):
         # self.distribution = "Normal" ...
 
     def validate(self, value):
-        ret_val = int(value)
+        ret_val = int(round(float(value)))
         ret_val = self.upper if ret_val > self.upper else ret_val
         ret_val = self.lower if ret_val < self.lower else ret_val
         return ret_val
@@ -371,6 +405,7 @@ class IntegerParameter(Parameter):
 # =============================================================================
 # Handle dummy coding, translate dummies back into categorical, etc.
 # Should this really be a subclass of DataFrame?
+# THIS IS PROBABLY GOING AWAY
 # =============================================================================
 class DataFrameWithDummies(object):
     """Creates dummy coded variables in df, and associated Parameter objects
@@ -487,7 +522,9 @@ def NT3_ParameterSet():
     
     ps = ParameterSet()
     
-    ps.add(DiscreteParameter("batch_size", batch_size))
+    # switching from Discrete to NumericList to enforce integer type
+    #ps.add(DiscreteParameter("batch_size", batch_size))
+    ps.add(NumericListParameter("batch_size", batch_size))
     ps.add(IntegerParameter("epochs", 5, 100))
     ps.add(DiscreteParameter("activation", activation))
     ps.add(DiscreteParameter("dense", dense))
