@@ -42,11 +42,13 @@ for path in paths:
     add_path(*p)
 
 
-import nt3_run_data as nt3d
+import run_data as rd
 import nt3_baseline_keras2 as nt3b
 
 import parameter_set as prs
 import CategoricalKernel as ck
+#import CategoricalKernel_cython as ck
+
 
 import pandas as pd
 from collections import defaultdict
@@ -84,7 +86,7 @@ config_file = os.path.join(file_path, 'nt3_default_model.txt')
 # location where keras log will be written
 # will be written into parameter dictionary
 output_dir = os.path.join(file_path, 'save') 
-output_subdirectory = 'experiment_gpr_0' 
+output_subdirectory = 'experiment_gpr_1' 
 
 # read in global default parametere configuration
 default_params = nt3b.read_config_file(config_file)
@@ -161,7 +163,7 @@ def get_nt3_data(output_dir=output_dir,
     if from_csv:
         data = pd.read_csv("nt3_initial_data.csv", dtype=dtype)
     else:
-        nt3_data = nt3d.NT3RunData(output_dir=output_dir,
+        nt3_data = rd.NT3RunData(output_dir=output_dir,
                                    subdirectory=output_subdirectory)
         nt3_data.add_all()
         data = nt3_data.dataframe
@@ -291,6 +293,7 @@ lower_bound = Xd.min(axis=0)
 upper_bound = Xd.max(axis=0)
 
 bounds = [(lower, upper) for lower, upper in zip(lower_bound, upper_bound)]
+#bounds = gpr.kernel.bounds
 
 # using location of best actual value (yidxmin) as starting point
 # other starting points potentailly could find local minima
@@ -324,9 +327,9 @@ run_params.append(params)
 # more draws at higher levels will explore more broadly
 # more layers will narrow the focus more tightly around the initial point
 # =============================================================================
-INITIAL_GUESSES = 1
-FOCUSSED_GUESSES = 1
-FOCUS_2_GUESSES = 1
+INITIAL_GUESSES = 3
+FOCUSSED_GUESSES = 3
+FOCUS_2_GUESSES = 3
 
 for i in range(INITIAL_GUESSES):
     focus = ps.focus(d)
@@ -356,14 +359,14 @@ for params in run_params:
 # Now gather up the results from output_subdirectory and repeat
 # =============================================================================
 if run_keras:
-    new_data = get_nt3_data()
+    new_data = get_nt3_data(output_dir, output_subdirectory)
     new_data.describe()
  
 # =============================================================================
 # Augment training data, update GPR model, generate new candidates ...
 # =============================================================================
 
-#    nt3_data = nt3d.NT3RunData(output_dir=output_dir,
+#    nt3_data = rd.NT3RunData(output_dir=output_dir,
 #                               subdirectory=output_subdirectory) #,
 #                               #pdtypes=pdtypes)
 #    nt3_data.add_all()

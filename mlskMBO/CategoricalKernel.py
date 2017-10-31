@@ -6,13 +6,18 @@ Created on Mon Oct  9 09:09:33 2017
 @author: johnbauer
 """
 from __future__ import print_function
+
+#import hypersphere as hs
+import hypersphere_cython as hs
+#import CategoricalKernel as ck
+
 from math import pi, sin, cos
 import logging
 import numpy as np
 import pandas as pd
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Kernel
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel, CompoundKernel
 from sklearn.gaussian_process.kernels import Hyperparameter
 from sklearn.preprocessing import StandardScaler
 
@@ -87,7 +92,8 @@ class ProjectionKernel(Kernel):
             r.append(Hyperparameter("{}__{}".format(self.name, hyperparameter.name),
                                     hyperparameter.value_type,
                                     hyperparameter.bounds,
-                                    hyperparameter.n_elements))
+                                    hyperparameter.n_elements,
+                                    hyperparameter.log))
         return r
 
     @property
@@ -193,8 +199,10 @@ class ExchangeableKernel(Kernel):
     
     def is_stationary(self):
         return False
-    
-# TODO: enforce dim*dim-1)/2 = len(theta), remove from signature
+
+# =============================================================================
+# Cythonize construction of matrices and gradient for efficiency
+# =============================================================================
 class HyperSphere(object):
     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
@@ -203,8 +211,69 @@ class HyperSphere(object):
     def __init__(self, dim, zeta=[]):
         m = dim*(dim-1)//2
         self.dim = dim
-        if zeta is not None and len(zeta):
+        if isinstance(zeta, (list, tuple, np.ndarray)) and len(zeta):
             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
+        elif isinstance(zeta, (int, float, np.float64, np.int64)):
+            zeta = [zeta]
+        else:
+            zeta = [pi/4.0]*m
+        zeta_lt = np.zeros((dim, dim))
+        # lower triangular indices, offset -1 to get below-diagonal elements
+        for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
+            zeta_lt[ind] = th
+        # set the diagonal to 1
+        for i in range(dim):
+            zeta_lt[i,i] = 1.0
+        self.zeta = zeta_lt
+        self._lt = None
+        #self._lt = self._lower_triangular()
+            
+    # see HyperSphere_test for pure Python equivalent
+    def _lower_triangular(self):
+        if self._lt is None:
+            self._lt = hs.HyperSphere_lower_triangular(self.dim, self.zeta)
+        return self._lt
+    
+    @property
+    def correlation(self):
+        lt = self._lower_triangular()
+        return lt.dot(lt.T)
+
+    # see HyperSphere_test for pure Python equivalent
+    def _lower_triangular_derivative(self):
+        dim = self.dim
+        zeta = self.zeta
+        dLstack = []
+        for dr, ds in zip(*np.tril_indices(dim, -1)):
+            dL = hs.HyperSphere_lower_triangular_derivative(dim, zeta, dr, ds)
+            dLstack.append(dL)
+        return dLstack
+    
+    def gradient(self):
+        L = self._lower_triangular()
+        dLstack = self._lower_triangular_derivative()
+        gradstack = []
+        for dL in dLstack:
+            dLLt = dL.dot(L.T)
+            grad = dLLt + dLLt.T
+            gradstack.append(grad)
+        return gradstack
+    
+# =============================================================================
+# Pure Python implememntation, compare to Cython version for testing
+# =============================================================================
+class HyperSphere_test(HyperSphere):
+    """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
+    using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
+    interval (0, pi).
+    """
+    def __init__(self, dim, zeta=[]):
+        m = dim*(dim-1)//2
+        self.dim = dim
+        if isinstance(zeta, (list, tuple)) and len(zeta):
+            assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
+        elif isinstance(zeta, (int, float, np.float64, np.int64)):
+            zeta = [zeta]
         else:
             zeta = [pi/4.0]*m
         zeta_lt = np.zeros((dim, dim))
@@ -267,10 +336,211 @@ class HyperSphere(object):
             grad = dLLt + dLLt.T
             gradstack.append(grad)
         return gradstack
-        # TODO: call np.dstack here, us np.newaxis to handle matrix mult
-        # cf kernels.py
-        #return np.dstack(gradstack)
     
+    
+# =============================================================================
+# Assumes X includes a factor f which has been dummy coded into columns
+# F = (f_0, f_1, ... f_dim-1)
+# Use with ProjectionKernel to extract the columns
+# =============================================================================
+class FactorKernel(Kernel):
+    def __init__(self, dim, zeta=[], zeta_bounds=(0.0, pi)): # add 2*pi in hopes of eliminating difficulties with log transform
+        # TODO: fix this so zeta can be a list or array
+        self.dim = dim
+        m = dim*(dim-1)/2
+        zeta = zeta if zeta else [pi/4.0]*m
+        assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
+        self.zeta = zeta
+        self.zeta_bounds = zeta_bounds
+        # TODO: other models for correlation structure (exchangeable, multiplicative)
+        # DON'T try to cache HyperSphere --- clone_with_theta won't reset it 
+        #self._hs = HyperSphere(dim, zeta)
+        #self.corr = self.hs.correlation
+
+    def __call__(self, X, Y=None, eval_gradient=False):
+        #logging.debug("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
+        #print("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
+        assert X.shape[1] == self.dim, "Wrong dimension for X"
+        if Y is not None:
+            assert Y.shape[1] == self.dim, "Wrong dimension for Y"
+
+        Y1 = Y if Y is not None else X
+        
+        h = self.hypersphere
+        
+        K = X.dot(h.correlation).dot(Y1.T)
+
+        if eval_gradient:
+            if Y is not None:
+                raise ValueError("Gradient can only be evaluated when Y is None.")
+            G = h.gradient()
+            # G is a list of arrays
+            assert all(g.shape[0] == X.shape[1] for g in G), "Incompatible dimensions"
+            grad = []
+            for g in G:
+                grad.append(X.dot(g).dot(X.T))
+            grad_stack = np.dstack(grad)
+            return K, grad_stack
+        else:
+            return K
+        
+    @property
+    def hypersphere(self):
+        return HyperSphere(self.dim, self.zeta)
+    
+    @property
+    def correlation(self):
+        #return self.hs.correlation
+        return self.hypersphere.correlation
+        
+    def naive__call__(self, X, Y=None, eval_gradient=False):
+        # retain for testing purposes
+        N = X.shape[0]
+        Y = Y if Y is not None else X
+        M = Y.shape[0]
+        K = np.zeros((N,M), dtype=np.float64)
+        corr = self.correlation
+        # for correctness use naive implementation
+        # TODO: use broadcasting or kronecker product, verify against naive
+        c = X[:,self.column]
+        for i in range(N):
+            for j in range(M):
+                K[i,j] = corr[c[i],c[j]]
+        # TODO: the gradient is NOT CORRECT it needs to be 'stretched'
+        # see __call__ for full (large!) gradient
+        if eval_gradient:
+            print("Naive Gradient is for debugging only")
+            G = self.hypersphere.gradient()
+            return K, G
+        else:
+            return K
+        
+    def diag(self, X):
+        return np.ones([X.shape[0]], dtype=np.float64)
+
+    def is_stationary(self):
+        return False
+    
+    @property
+    def hyperparameter_zeta(self):
+        n_elts = len(self.zeta) if np.iterable(self.zeta) else 1
+        return  Hyperparameter(name="zeta", 
+                               value_type="numeric", 
+                               bounds=self.zeta_bounds, 
+                               n_elements=n_elts,
+                               log=False)
+
+class ExchangeableCorrelation(Kernel):
+    def __init__(self, correlation, correlation_bounds=(0.0, 1.0)):
+        self.correlation = correlation
+        self.correlation_bounds = correlation_bounds
+        
+    def __call__(self, X, Y=None, eval_gradient=False):
+        X = np.atleast_2d(X)
+        if Y is None:
+            Y = X
+        elif eval_gradient:
+            raise ValueError("Gradient can only be evaluated when Y is None.")
+        assert X.shape[1] == Y.shape[1], "Dimension mismatch for X and Y"
+        
+        dim = X.shape[1]
+        
+        C = self.correlation * np.ones((dim,dim), dytpe=np.float64)
+        np.fill_diagonal(C, 0.0)
+        
+        K = X.dot(C).dot(Y.T)
+        
+        if eval_gradient:
+            if not self.hyperparameter_constant_value.fixed:
+                # For untransformed coordinates:
+                #gradient = np.ones((dim,dim), dytpe=np.float64)
+                #np.fill_diagonal(K_gradient, 0.0)
+                #K_gradient = X.dot(K_gradient).dot(X.T)
+                # If log-transformed:
+                return (K, np.dstack([K]))
+            else:
+                return K, np.empty((X.shape[0], X.shape[0], 0))
+        else:
+            return K
+
+    def diag(self, X):
+        """Returns the diagonal of the kernel k(X, X).
+
+        The result of this method is identical to np.diag(self(X)); however,
+        it can be evaluated more efficiently since only the diagonal is
+        evaluated.
+
+        Parameters
+        ----------
+        X : array, shape (n_samples_X, n_features)
+            Left argument of the returned kernel k(X, Y)
+
+        Returns
+        -------
+        K_diag : array, shape (n_samples_X,)
+            Diagonal of kernel k(X, X)
+        """
+        return self.constant_value * np.ones(X.shape[0])
+
+    def __repr__(self):
+        return "{0:.3g}**2".format(np.sqrt(self.constant_value))        
+        
+    @property
+    def hyperparameter_c(self):
+        return  Hyperparameter(name="c", 
+                               value_type="numeric", 
+                               bounds=self.c_bounds, 
+                               n_elements=1,
+                               log=False)
+        
+        
+
+class SimpleFactorKernel(CompoundKernel):
+    """Alternative implementation of SimpleCategoricalKernel
+    
+    Testing the water with CompoundKernel before attempting Tensor
+    """
+    def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
+        """Dummy-code the given column, put a RBF kernel
+        on each of the variates, then return the product kernel
+        
+        If all length scales are small, assume little shared information
+        between categories
+        
+        kernel will typically be RBF with a single length parameter
+        (passing in an alternative kernel not currently implemented)
+        """
+#        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
+#        self.column = [column] if isinstance(column, int) else column
+#        assert all(isinstance(i, int) for i in self.column), "must be integers"
+        self.dim = dim
+        
+        kernels = [ProjectionKernel(RBF(), [c]) for c in range(dim)]
+
+        # collect all the kernels to be combined into a single product kernel
+        super(SimpleFactorKernel, self).__init__(kernels)    
+
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Assumes dummy-coded data e.g. from a single column 
+        project onto each category"""
+
+        assert X.shape[1] == self.dim, "Wrong dimension for X"
+        if Y is not None:
+            assert Y.shape[1] == self.dim, "Wrong dimension for Y"
+        
+        if eval_gradient:
+            def _k_g_mul_(kg0, kg1):
+                k0, g0 = kg0
+                k1, g1 = kg1
+                return k0 * k1,\
+                    np.dstack((g0 * k1[:, :, np.newaxis],
+                               g1 * k0[:, :, np.newaxis]))
+            return reduce(_k_g_mul_,
+                          (k(X, Y, eval_gradient=True) for k in self.kernels))            
+        else:
+            return reduce(lambda k0, k1 : k0 * k1,
+                          (k(X, Y, eval_gradient=False) for k in self.kernels))
+
     
 class SimpleCategoricalKernel(Kernel):
     def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
@@ -342,7 +612,8 @@ class SimpleCategoricalKernel(Kernel):
             r.append(Hyperparameter(hyperparameter.name,
                                     hyperparameter.value_type,
                                     hyperparameter.bounds,
-                                    hyperparameter.n_elements))
+                                    hyperparameter.n_elements,
+                                    hyperparameter.log))
         return r
 
     @property
@@ -416,160 +687,6 @@ class SimpleCategoricalKernel(Kernel):
         return self.kernel.is_stationary()
 
     
-# =============================================================================
-# Assumes X includes a factor f which has been dummy coded into columns
-# F = (f_0, f_1, ... f_dim-1)
-# Expects to receive a list of indices identifying the columns of F in X
-# =============================================================================
-class FactorKernel(Kernel):
-    def __init__(self, dim, zeta=[], zeta_bounds=(2*pi, 3*pi)): # add 2*pi in hopes of eliminating difficulties with log transform
-        # TODO: fix this so zeta can be a list or array
-        self.dim = dim
-        m = dim*(dim-1)/2
-        zeta = zeta if zeta else [pi/4.0]*m
-        assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
-        self.zeta = zeta
-        self.zeta_bounds = zeta_bounds
-        # TODO: other models for correlation structure (exchangeable, multiplicative)
-        #self.hs = HyperSphere(dim, zeta)
-        #self.corr = self.hs.correlation
-
-    def __call__(self, X, Y=None, eval_gradient=False):
-        logging.debug("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
-        #print("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
-        assert X.shape[1] == self.dim, "Wrong dimension for X"
-        if Y is not None:
-            assert Y.shape[1] == self.dim, "Wrong dimension for Y"
-
-        Y1 = Y if Y is not None else X
-        
-        K = X.dot(self.correlation).dot(Y1.T)
-
-        if eval_gradient:
-            if Y is not None:
-                raise ValueError("Gradient can only be evaluated when Y is None.")
-            #G = self.hs.gradient()
-            G = HyperSphere(self.dim, self.zeta).gradient()
-            # G is a list of arrays
-            assert all(g.shape[0] == X.shape[1] for g in G), "Incompatible dimensions"
-            grad = []
-            for g in G:
-                grad.append(X.dot(g).dot(X.T))
-            grad_stack = np.dstack(grad)
-            return K, grad_stack
-        else:
-            return K
-        
-    @property
-    def correlation(self):
-        #return self.hs.correlation
-        return HyperSphere(self.dim, self.zeta).correlation
-        
-    def naive__call__(self, X, Y=None, eval_gradient=False):
-        # retain for testing purposes
-        N = X.shape[0]
-        Y = Y if Y is not None else X
-        M = Y.shape[0]
-        K = np.zeros((N,M), dtype=np.float64)
-        corr = self.correlation
-        # for correctness use naive implementation
-        # TODO: use broadcasting or kronecker product, verify against naive
-        c = X[:,self.column]
-        for i in range(N):
-            for j in range(M):
-                K[i,j] = corr[c[i],c[j]]
-        # TODO: the gradient is NOT CORRECT it needs to be 'stretched'
-        # see __call__ for full (large!) gradient
-        if eval_gradient:
-            print("Naive Gradient is for debugging only")
-            G = self.hs.gradient()
-            return K, G
-        else:
-            return K
-        
-    def diag(self, X):
-        return np.ones([X.shape[0]], dtype=np.float64)
-
-    def is_stationary(self):
-        return False
-    
-    @property
-    def hyperparameter_zeta(self):
-        return  Hyperparameter(name="zeta", value_type="numeric", bounds=self.zeta_bounds, n_elements=len(self.zeta))
-
-
-# =============================================================================
-# TODO: are these necessary, or redundant?
-# =============================================================================
-#        
-#    @property
-#    def theta(self):
-#        """Returns the (flattened, log-transformed) non-fixed hyperparameters.
-#
-#        Note that theta are typically the log-transformed values of the
-#        kernel's hyperparameters as this representation of the search space
-#        is more amenable for hyperparameter search, as hyperparameters like
-#        length-scales naturally live on a log-scale.
-#
-#        Returns
-#        -------
-#        theta : array, shape (n_dims,)
-#            The non-fixed, log-transformed hyperparameters of the kernel
-#        """
-#        return self.kernel.theta
-#
-#    @theta.setter
-#    def theta(self, theta):
-#        """Sets the (flattened, log-transformed) non-fixed hyperparameters.
-#
-#        Parameters
-#        ----------
-#        theta : array, shape (n_dims,)
-#            The non-fixed, log-transformed hyperparameters of the kernel
-#        """
-#        self.kernel.theta = theta
-#
-#    @property
-#    def bounds(self):
-#        """Returns the log-transformed bounds on the theta.
-#
-#        Returns
-#        -------
-#        bounds : array, shape (n_dims, 2)
-#            The log-transformed bounds on the kernel's hyperparameters theta
-#        """
-#        return self.kernel.bounds
-
-# =============================================================================
-# class FactorKernel_defunct(Kernel):
-#     def __init__(self, column, lt):
-#         assert isinstance(lt, HyperSphere), "Expecting a lower triangular HyperSphere thingy"
-#         self.column = column
-#         self.hs = lt
-#         lmat = sp.mat(lt.lower_triangular())
-#         self.corr = lmat * lmat.T
-#         
-#     def __call__(self, X, Y=None, eval_gradient=False):
-#         #assert False, "unimplemented"
-#         N = X.shape[0]
-#         K = np.zeros((N,N), dtype=np.float64)
-#         corr = self.corr
-#         # for correctness use naive implementation
-#         # TODO: use broadcasting, verify against naive
-#         c = X[:,self.column]
-#         for i in range(N):
-#             for j in range(N):
-#                 K[i,j] = corr[c[i],c[j]]
-#         return K
-#         
-#     def diag(self, X):
-#         return np.ones([X.shape[0]], dtype=np.float64)
-# 
-#     def is_stationary(self):
-#         return False   
-# =============================================================================
-    
-    
 if __name__ == "__main__":
     
     X = np.array([[1,2,3,0],[2,1,3,0],[2,2,3,1],[1,4,3,2]])
@@ -590,6 +707,7 @@ if __name__ == "__main__":
     print("5-parameter, lower triangular\n", ltz._lower_triangular())
     
     ltk = FactorKernel(3, [0.5,0.5,0.5])
+    print("Factor Kernel\n", ltk)
     print("Factor Kernel\n", ltk(X[:,[0,1,2]]))
 
     #C5 = np.array([0,0,1,1,1,2,2,2,3,3]).reshape((-1,1))
@@ -598,6 +716,9 @@ if __name__ == "__main__":
     D = np.array([e[c] for c in C]).reshape(-1,4)
     #print(C5.shape)
     ltk4 = FactorKernel(4, zeta=[2*pi+pi/6]*6)
+    print("Factor Kernel {} dimensions".format(ltk4.dim))
+    print(ltk4)
+    print(ltk4.theta)
     print(ltk4(D))
     print(ltk4.hyperparameters)
     K, G = ltk4(D, eval_gradient=True)
@@ -612,6 +733,6 @@ if __name__ == "__main__":
     print(prod.get_params(deep=False))
     print(prod.hyperparameters)
     
-    ltk4.theta = [pi/4]*6
+    ltk4.theta = [pi/i for i in range(1,7)]
     print(ltk4.theta)
     print(ltk4.zeta)
