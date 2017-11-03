@@ -161,7 +161,7 @@ class ProjectionKernel(Kernel):
         return self.kernel.diag(X1)
     
     def __repr__(self):
-        return "{0} projected on {1}".format(self.kernel, self.columns)
+        return "Project{1} -> {0}".format(self.kernel, self.columns)
 
     def is_stationary(self):
         """Returns whether the kernel is stationary. """
@@ -314,16 +314,13 @@ class HyperSphere_test(HyperSphere):
         for dr, ds in zip(*np.tril_indices(dim, -1)):
             dL = np.zeros((dim, dim), dtype=np.float64)
             for s in range(dr):
-                if s == ds or ds in range(s):
+                if 0 <= ds <= s:
                     dL[dr,s] = cos(zeta[dr,s]) if s != ds else -sin(zeta[dr,s])
                     for j in range(s):
                         dL[dr,s] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
             dL[dr,dr] = 1.0 
             for j in range(dr):
                 dL[dr,dr] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
-#                else:
-#                    # strictly speaking could skip this since initialized to zero anyway
-#                    dL[r,s] = 0.0
             dLstack.append(dL)
         return dLstack
     
@@ -492,41 +489,13 @@ class ExchangeableCorrelation(Kernel):
                                bounds=self.c_bounds, 
                                n_elements=1,
                                log=False)
-        
-        
 
-class SimpleFactorKernel(CompoundKernel):
-    """Alternative implementation of SimpleCategoricalKernel
-    
-    Testing the water with CompoundKernel before attempting Tensor
-    """
-    def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
-        """Dummy-code the given column, put a RBF kernel
-        on each of the variates, then return the product kernel
+class Tensor(CompoundKernel):
+    def __init__(self, *args):
+        super(Tensor, self).__init__(args)
         
-        If all length scales are small, assume little shared information
-        between categories
-        
-        kernel will typically be RBF with a single length parameter
-        (passing in an alternative kernel not currently implemented)
-        """
-#        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
-#        self.column = [column] if isinstance(column, int) else column
-#        assert all(isinstance(i, int) for i in self.column), "must be integers"
-        self.dim = dim
-        
-        kernels = [ProjectionKernel(RBF(), [c]) for c in range(dim)]
-
-        # collect all the kernels to be combined into a single product kernel
-        super(SimpleFactorKernel, self).__init__(kernels)    
-
     def __call__(self, X, Y=None, eval_gradient=False):
-        """Assumes dummy-coded data e.g. from a single column 
-        project onto each category"""
-
-        assert X.shape[1] == self.dim, "Wrong dimension for X"
-        if Y is not None:
-            assert Y.shape[1] == self.dim, "Wrong dimension for Y"
+        """Computes product of all the kernels (and gradients)"""
         
         if eval_gradient:
             def _k_g_mul_(kg0, kg1):
@@ -540,8 +509,50 @@ class SimpleFactorKernel(CompoundKernel):
         else:
             return reduce(lambda k0, k1 : k0 * k1,
                           (k(X, Y, eval_gradient=False) for k in self.kernels))
+            
+class DirectSum(CompoundKernel):
+    def __init__(self, *args):
+        super(DirectSum, self).__init__(args)
+        
+    def __call__(self, X, Y=None, eval_gradient=False):
+        """Computes product of all the kernels (and gradients)"""
+        
+        if eval_gradient:
+            def _k_g_add_(kg0, kg1):
+                k0, g0 = kg0
+                k1, g1 = kg1
+                return k0 + k1, np.dstack((g0, g1))
+            return reduce(_k_g_add_,
+                          (k(X, Y, eval_gradient=True) for k in self.kernels))            
+        else:
+            return reduce(lambda k0, k1 : k0 + k1,
+                          (k(X, Y, eval_gradient=False) for k in self.kernels))
 
+class SimpleFactorKernel(Tensor):
+    """Alternative implementation of SimpleCategoricalKernel
     
+    Testing the water with CompoundKernel before attempting Tensor
+    """
+    def __init__(self, columns):     #, length_scale, length_scale_bounds=()):
+        """Dummy-code the given column, put a RBF kernel
+        on each of the variates, then return the product kernel
+        
+        If all length scales are small, assume little shared information
+        between categories
+        
+        kernel will typically be RBF with a single length parameter
+        (passing in an alternative kernel not currently implemented)
+        """
+#        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
+#        self.column = [column] if isinstance(column, int) else column
+#        assert all(isinstance(i, int) for i in self.column), "must be integers"
+        
+        kernels = [ProjectionKernel(RBF(), [c]) for c in columns]
+
+        # collect all the kernels to be combined into a single product kernel
+        super(SimpleFactorKernel, self).__init__(*kernels)    
+        
+        
 class SimpleCategoricalKernel(Kernel):
     def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
         """Dummy-code the given column, put a RBF kernel

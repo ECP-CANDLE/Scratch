@@ -211,6 +211,7 @@ def p1b1_parameter_set():
 
 
 def gpr_search(data_df, X_columns, target=TARGET, 
+               alpha=0.001,
                factors=[],
                verbose=True):
     """Gaussian Process Regression model
@@ -280,9 +281,10 @@ def gpr_search(data_df, X_columns, target=TARGET,
     print(kernel)
     
     gpr = GaussianProcessRegressor(kernel=kernel,
-                                   alpha=0.001,
+                                   alpha=alpha,
                                    normalize_y=True,
                                    n_restarts_optimizer=5)
+    #gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, normalize_y=True)
     
     gpr.fit(Xd, y)    
     # n.b. could scale y but for now handle y with normalize_y in GPR
@@ -365,7 +367,13 @@ if __name__ == "__main__":
 # but there are some really big ones in there
 # =============================================================================
     p1b1_data = p1b1_data[p1b1_data.validation_loss < 1]
-    
+
+# =============================================================================
+# To work with a subset of the 1046 points remaining after the above:
+# =============================================================================
+    subset = [i for i in range(len(p1b1_data)) if i % 10 == 0]
+    p1b1_data = p1b1_data.iloc[subset]
+
     data_columns = [
              'drop',
              'optimizer',
