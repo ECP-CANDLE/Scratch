@@ -90,7 +90,7 @@ class HyperSphere(object):
     # see HyperSphere_test for pure Python equivalent
     def _lower_triangular_derivative(self):
         dim = self.dim
-        zeta = self.zeta
+        #zeta = self.zeta
         cos_zeta = self.cos_zeta
         sin_zeta = self.sin_zeta
         
@@ -247,22 +247,26 @@ def test_gradient(dim, pure=True):
     return h.gradient
     
 if __name__ == "__main__":
-    N = 1000
-    usec = 1e6 / N
-        
-    template = "     {:6} {:11} {:10.3f} sec, {:15.9f} usec per repetition"
+    import pandas as pd
+    import seaborn as sns
+
+    from collections import defaultdict
+            
+    template = "{:3} {:6} {:11} {:10.3f} sec, {:15.9f} usec per repetition"
     
     if True:
-        hc = HyperSphere(4)
-        hp = HyperSphere_pure(4)
+        hc = HyperSphere(6)
+        hp = HyperSphere_pure(6)
         #ho = HyperSphere_pure_original(4)
         
         print("\nChecking Correlation for equivalence to pure python")
-        print((hc.correlation - hp.correlation).max())
-        print("Result should be zero")
+        diff = hc.correlation - hp.correlation
+        print(diff.min(), diff.max())
+        print("time should be zero")
         print("\nChecking Gradient for equivalence to pure python")
         for gc, gp in zip(hc.gradient, hp.gradient):
-            print((gc-gp).max())
+            diff = gc - gp
+            print(diff.min(), diff.max())
         print("All should be zero")
             
 #        print("Correlations")
@@ -280,28 +284,135 @@ if __name__ == "__main__":
 #        print(ho._lower_triangular_derivative())
 #        print(hp._lower_triangular_derivative())
     
-    for d in range(2,25):
-        print("\n")
-        print("*"*80)
-        print("\nDimension = {}, Number of repetitions = {}\n".format(d, N))
+    def test(function, dimension, pure, N):
         
-        result = timeit.timeit("test_correlation({})".format(d),
-                            setup="from __main__ import test_correlation",
-                            number=N)
-        print(template.format("Python", "Correlation", result, result*usec))
+        test = "test_{}({}, pure={})".format(function, dimension, pure)
+        time = timeit.timeit(test,
+                               setup="from __main__ import test_{}".format(function),
+                               number=N)
+        return dict(function=function, dimension=dimension,
+                    code="Python" if pure else "Cython",
+                    N=N,
+                    time=time)
         
-        result = timeit.timeit("test_correlation({}, pure=False)".format(d),
-                            setup="from __main__ import test_correlation",
-                            number=N)
-        print(template.format("Cython", "Correlation", result, result*usec))
+    class TimeitData():
+        def __init__(self):
+            self.data = defaultdict(list)
+            
+        def add_result(self, result_dict):
+            data = self.data
+            for k, v in result_dict.items():
+                data[k].append(v)
+                
+        @property
+        def dataframe(self):
+            return pd.DataFrame(self.data)
+
+    td = TimeitData()
+
+    N = 200
+    max_dim = 31 # was 61; suppress test code
     
-        result = timeit.timeit("test_gradient({})".format(d),
-                            setup="from __main__ import test_gradient",
-                            number=N)
-        print(template.format("Python", "Gradient", result, result*usec))
+    usec = 1e6 / N
     
+    for d in range(2,max_dim):
+        for f in ["correlation", "gradient"]:
+            for pure in [False, True]:
+                result_dict = test(f, d, pure, N)
+                time = result_dict["time"]
+                print(template.format(d,
+                                      "Python" if pure else "Cython",
+                                      f,
+                                      time,
+                                      time*usec))
+                td.add_result(result_dict)
     
-        result = timeit.timeit("test_gradient({}, pure=False)".format(d),
-                            setup="from __main__ import test_gradient",
-                            number=N)    
-        print(template.format("Cython", "Gradient", result, result*usec))
+    # read cached data if tests are suppressed
+    if max_dim == 2:
+        df = pd.read_csv("HyperSphere_test_60.csv")
+    else:
+        df = td.dataframe
+        
+    df["color"] = df.code.replace(["Cython", "Python"], ["r", "b"])
+    df['parameters'] = df.dimension * (df.dimension - 1) / 2
+    
+    df_corr = df[df.function == "correlation"]
+    df_grad = df[df.function == "gradient"]
+    
+    df_corr.plot.scatter('dimension', 'time', c=df.color, title='Correlation')
+    df_grad.plot.scatter('dimension', 'time', c=df.color, title='Gradient')
+ 
+    df_corr.plot.scatter('parameters', 'time', c=df.color, title='Correlation')
+    df_grad.plot.scatter('parameters', 'time', c=df.color, title='Gradient')
+
+    sns.lmplot(x='dimension', y='time', data=df_corr, order=2, hue="code")
+    sns.lmplot(x='dimension', y='time', data=df_grad, order=2, hue="code")
+
+    sns.lmplot(x='parameters', y='time', data=df_corr, order=2, hue="code")
+    sns.lmplot(x='parameters', y='time', data=df_grad, order=2, hue="code")
+
+    df_corr_cython = df_corr[df_corr.code == 'Cython']
+    df_corr_python = df_corr[df_corr.code == 'Python']
+    
+    df_corr_cython.index = range(len(df_corr_cython))
+    df_corr_python.index = range(len(df_corr_python))
+    
+    df_corr_compare = pd.concat([df_corr_cython, df_corr_python], keys=['cython', 'python'], axis=1)
+    df_corr_compare['ratio'] = df_corr_compare[('python', 'time')] / df_corr_compare[('cython', 'time')]
+
+    df_grad_cython = df_grad[df_grad.code == 'Cython']
+    df_grad_python = df_grad[df_grad.code == 'Python']
+
+    df_grad_cython.index = range(len(df_grad_cython))
+    df_grad_python.index = range(len(df_grad_python))
+    
+    df_grad_compare = pd.concat([df_grad_cython, df_grad_python], keys=['cython', 'python'], axis=1)
+    df_grad_compare['ratio'] = df_grad_compare[('python', 'time')] / df_grad_compare[('cython', 'time')]
+
+
+    df_corr_ratio = pd.DataFrame({ 'ratio' : df_corr_compare['ratio'], 'parameters' : df_corr_compare[('cython', 'parameters')]})
+    df_grad_ratio = pd.DataFrame({ 'ratio' : df_grad_compare['ratio'], 'parameters' : df_grad_compare[('cython', 'parameters')]})
+
+    sns.lmplot(x='parameters', y='ratio', data=df_corr_ratio, order=4)
+    sns.lmplot(x='parameters', y='ratio', data=df_grad_ratio, order=4)
+    
+# =============================================================================
+#     df_corr_compare = df_corr.pivot(index='dimension', columns='code')
+#     df_corr_compare['ratio'] = df_corr_compare[('time','Python')] / df_corr_compare[('time','Cython')]
+# 
+#     df_grad_compare = df_grad.pivot(index='dimension', columns='code')
+#     df_grad_compare['ratio'] = df_grad_compare[('time','Python')] / df_grad_compare[('time','Cython')]
+#     
+#     df_corr_compare.plot.scatter(('parameters', 'Cython'), 'ratio', title='Correlation')
+#     df_grad_compare.plot.scatter(('parameters', 'Cython'), 'ratio', title='Gradient')
+#     
+# =============================================================================
+
+# =============================================================================
+#     for d in range(2,2):
+#         print("\n")
+#         print("*"*80)
+#         print("\nDimension = {}, Number of repetitions = {}\n".format(d, N))
+#                 
+#         time = timeit.timeit("test_correlation({})".format(d),
+#                             setup="from __main__ import test_correlation",
+#                             number=N)
+#         print(template.format("Python", "Correlation", time, time*usec))
+#         
+#         time = timeit.timeit("test_correlation({}, pure=False)".format(d),
+#                             setup="from __main__ import test_correlation",
+#                             number=N)
+#         print(template.format("Cython", "Correlation", time, time*usec))
+#     
+#         time = timeit.timeit("test_gradient({})".format(d),
+#                             setup="from __main__ import test_gradient",
+#                             number=N)
+#         print(template.format("Python", "Gradient", time, time*usec))
+#     
+#     
+#         time = timeit.timeit("test_gradient({}, pure=False)".format(d),
+#                             setup="from __main__ import test_gradient",
+#                             number=N)    
+#         print(template.format("Cython", "Gradient", time, time*usec))
+# 
+# =============================================================================

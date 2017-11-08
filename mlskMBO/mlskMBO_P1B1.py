@@ -262,19 +262,23 @@ def gpr_search(data_df, X_columns, target=TARGET,
     # fairly generic Radial Basis Function kernel with scaling
     # fairly broad bounds on the hyperparameters (which are fit automatically) 
     #k = ConstantKernel(1.0, (0.001, 1000.0))
+    
+    # TODO: consider initializing with each variable's standard deviation
     kernel = ck.ProjectionKernel(RBF([1.0]*n_continuous, (0.001, 1000.0)), continuous_columns, name="continuous")
     
-# =============================================================================
-#     factor_kernel = {}
-#     for factor, columns in factor_columns.iteritems():
-#         dim = len(columns)
-#         fk = ck.FactorKernel(dim, [2*pi+pi/4.]*(dim*(dim-1)/2))
-#         factor_kernel[factor] = fk
-#         kernel *= ck.ProjectionKernel(fk, columns, name=factor)
-# =============================================================================
-    for factor, columns in factor_columns.iteritems():
-        dim = len(columns)
-        kernel *= ck.ProjectionKernel(ck.SimpleCategoricalKernel(dim), columns, name=factor)
+    # TODO: move this elsewhere!
+    simple = False
+    if simple:
+        for factor, columns in factor_columns.items():
+            dim = len(columns)
+            kernel *= ck.ProjectionKernel(ck.SimpleCategoricalKernel(dim), columns, name=factor)
+    else:
+        factor_kernel = {}
+        for factor, columns in factor_columns.items():
+            dim = len(columns)
+            fk = ck.FactorKernel(dim) #, [2*pi+pi/4.]*(dim*(dim-1)/2))
+            factor_kernel[factor] = fk
+            kernel *= ck.ProjectionKernel(fk, columns, name=factor)
     
     kernel += ConstantKernel()
     
@@ -283,7 +287,7 @@ def gpr_search(data_df, X_columns, target=TARGET,
     gpr = GaussianProcessRegressor(kernel=kernel,
                                    alpha=alpha,
                                    normalize_y=True,
-                                   n_restarts_optimizer=5)
+                                   n_restarts_optimizer=20)
     #gpr = GaussianProcessRegressor(kernel=k, alpha=0.001, normalize_y=True)
     
     gpr.fit(Xd, y)    
@@ -333,6 +337,7 @@ def gpr_search(data_df, X_columns, target=TARGET,
         pred = gpr.predict(result.x)
         for col, val in zip(columns, rx):
             result_data[col].append(val)
+        # pred is an ndarray with shape (1,) so unpack it
         result_data['gpr_optimum'].append(pred[0])
     for k , v in result_data.items():
         logging.debug("{} {}".format(k, len(v)))
@@ -345,7 +350,16 @@ def gpr_search(data_df, X_columns, target=TARGET,
     opt = {col : val for col, val in zip(columns, result_star)}
     return opt if not verbose else opt, gpr, Xd, gprpred, result_data
 
-
+def report(gpr):
+    for k, ker in gpr.kernel_.get_params().items():
+        try:
+            print(k)
+            print(ker)
+            print(ker.theta)
+            print(ker.correlation)
+        except:
+            pass
+        
 if __name__ == "__main__":
     pg = p1b1_parameter_grid()
     ps = p1b1_parameter_set()
@@ -371,7 +385,7 @@ if __name__ == "__main__":
 # =============================================================================
 # To work with a subset of the 1046 points remaining after the above:
 # =============================================================================
-    subset = [i for i in range(len(p1b1_data)) if i % 10 == 0]
+    subset = [i for i in range(len(p1b1_data)) if i % 8 == 0]
     p1b1_data = p1b1_data.iloc[subset]
 
     data_columns = [
@@ -433,3 +447,8 @@ if __name__ == "__main__":
 # =============================================================================
     dd = ps.decode_dummies(d)
     print(dd)
+    
+    # report the hyperparameters as fit by the model
+    print(gpr.kernel_.get_params())
+#    for factor, k in factor_kernel.items():
+#        print("Correlations ({})\n{}".format(factor, k.correlation))

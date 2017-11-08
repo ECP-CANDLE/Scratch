@@ -8,7 +8,6 @@ Created on Wed Oct 25 08:54:59 2017
 import numpy as np
 
 import cython
-cimport cpython.array
 
 cimport numpy as np
 from libc.math cimport sin, cos, pi
@@ -79,10 +78,6 @@ def HyperSphere_lower_triangular_derivative(np.ndarray dL_arr,
                                             int ds,
                                             np.ndarray cos_zeta,
                                             np.ndarray sin_zeta):                                            
-    # TODO: return a 3-d array instead of a list
-    cdef int m = dim*(dim-1)//2
-    #cdef np.ndarray dL_arr = np.zeros((dim, dim), dtype=FLOAT64)
-    
     # Memoryviews of the numpy arrays
     cdef FLOAT64_t [:, :] dL = dL_arr
     cdef FLOAT64_t [:, :] C = cos_zeta
