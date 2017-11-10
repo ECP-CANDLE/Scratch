@@ -7,7 +7,7 @@ Created on Mon Oct  9 09:09:33 2017
 """
 from __future__ import print_function
 
-#import hypersphere as hs
+from hypersphere import HyperSphere
 import hypersphere_cython as hs
 #import CategoricalKernel as ck
 
@@ -23,16 +23,27 @@ from sklearn.preprocessing import StandardScaler
 
 logging.basicConfig(filename='CategoricalKernel.log',level=logging.DEBUG)
 
-class ProjectionKernel(Kernel):
-    def __init__(self, kernel, columns, name="proj"):
+
+def _check_category_scale(X, scale):
+    scale = np.squeeze(scale).astype(float)
+    if np.ndim(scale) > 1:
+        raise ValueError("scale cannot be of dimension greater than 1")
+    if np.ndim(scale) == 1 and X.shape[1] != scale.shape[0]:
+        raise ValueError("Anisotropic kernel must have the same number of "
+                         "dimensions as data (%d!=%d)"
+                         % (scale.shape[0], X.shape[1]))
+    return scale
+
+class Projection(Kernel):
+    def __init__(self, kernel, columns, name=""):
         """
         
         kernel:     Kernel object, e.g. RBF()
-        name:       string to be used in naming kernel parameters
+        name:       string to be used in reporting parameters
         columns:    integer or list of integer indices of columns to project onto
         """
         assert isinstance(kernel, Kernel), "Kernel instance required"
-        self._kernel = kernel
+        self.kernel = kernel
         self.name = name
         self.columns = columns
         # if this gets too tedious go back to using pandas,
@@ -53,13 +64,15 @@ class ProjectionKernel(Kernel):
         
         return self.kernel(X1, Y1, eval_gradient=eval_gradient)
     
-    @property
-    def kernel(self):
-        return self._kernel
+# =============================================================================
+#     @property
+#     def kernel(self):
+#         return self._kernel
+# =============================================================================
 
 # =============================================================================
 # Propose a UnaryOperator class to include Exponentiation kernel, 
-# ProjectionKernel, SimpleCategoricalKernel, and so on
+# Projection, SimpleCategoricalKernel, and so on
 # The sequel is copied wholesale from ExponentiationKernel
 # =============================================================================
     def get_params(self, deep=True):
@@ -78,10 +91,11 @@ class ProjectionKernel(Kernel):
         """
         params = dict(kernel=self.kernel, columns=self.columns)
         #params = dict(columns=self.columns)
-        name_ = "{}{}__".format(self.name, self.columns)
+        #name_ = "{}{}__".format(self.name, self.columns)
         if deep:
             deep_items = self.kernel.get_params().items()
-            params.update((name_ + k, val) for k, val in deep_items)
+            #params.update((name_ + k, val) for k, val in deep_items)
+            params.update(("kernel__{}".format(k), val) for k, val in deep_items)
         return params
 
     @property
@@ -89,7 +103,8 @@ class ProjectionKernel(Kernel):
         """Returns a list of all hyperparameter."""
         r = []
         for hyperparameter in self.kernel.hyperparameters:
-            r.append(Hyperparameter("{}__{}".format(self.name, hyperparameter.name),
+            name = "{}__{}".format(self.name, hyperparameter.name)
+            r.append(Hyperparameter(name,
                                     hyperparameter.value_type,
                                     hyperparameter.bounds,
                                     hyperparameter.n_elements,
@@ -161,14 +176,17 @@ class ProjectionKernel(Kernel):
         return self.kernel.diag(X1)
     
     def __repr__(self):
-        return "Project{1} -> {0}".format(self.kernel, self.columns)
+        if self.name:
+            return "{{Factor {1} -> {0}}}".format(self.kernel, self.name)
+        else:
+            return "{{Project{1} -> {0}}}".format(self.kernel, self.columns)
 
     def is_stationary(self):
         """Returns whether the kernel is stationary. """
         return self.kernel.is_stationary()
 
     
-class ExchangeableKernel(Kernel):
+class DefunctExchangeableKernel(Kernel):
     # crude implementation, mixes ideas from Projection and Product kernels
     def __init__(self, n1, r):
         self.n1 = n1
@@ -201,144 +219,147 @@ class ExchangeableKernel(Kernel):
         return False
 
 # =============================================================================
-# Cythonize construction of matrices and gradient for efficiency
+# # =============================================================================
+# # Cythonize construction of matrices and gradient for efficiency
+# # =============================================================================
+# class HyperSphere(object):
+#     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
+#     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
+#     interval (0, pi).
+#     """
+#     def __init__(self, dim, zeta=[]):
+#         m = dim*(dim-1)//2
+#         self.dim = dim
+#         if isinstance(zeta, (list, tuple, np.ndarray)) and len(zeta):
+#             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
+#         elif isinstance(zeta, (int, float, np.float64, np.int64)):
+#             zeta = [zeta]
+#         else:
+#             zeta = [pi/4.0]*m
+#         zeta_lt = np.zeros((dim, dim))
+#         # lower triangular indices, offset -1 to get below-diagonal elements
+#         for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
+#             zeta_lt[ind] = th
+#         # set the diagonal to 1
+#         for i in range(dim):
+#             zeta_lt[i,i] = 1.0
+#         self.zeta = zeta_lt
+#         self._lt = None
+#         #self._lt = self._lower_triangular()
+#             
+#     # see HyperSphere_test for pure Python equivalent
+#     def _lower_triangular(self):
+#         if self._lt is None:
+#             self._lt = hs.HyperSphere_lower_triangular(self.dim, self.zeta)
+#         return self._lt
+#     
+#     @property
+#     def correlation(self):
+#         lt = self._lower_triangular()
+#         return lt.dot(lt.T)
+# 
+#     # see HyperSphere_test for pure Python equivalent
+#     def _lower_triangular_derivative(self):
+#         dim = self.dim
+#         zeta = self.zeta
+#         dLstack = []
+#         for dr, ds in zip(*np.tril_indices(dim, -1)):
+#             dL = hs.HyperSphere_lower_triangular_derivative(dim, zeta, dr, ds)
+#             dLstack.append(dL)
+#         return dLstack
+#     
+#     def gradient(self):
+#         L = self._lower_triangular()
+#         dLstack = self._lower_triangular_derivative()
+#         gradstack = []
+#         for dL in dLstack:
+#             dLLt = dL.dot(L.T)
+#             grad = dLLt + dLLt.T
+#             gradstack.append(grad)
+#         return gradstack
+#     
+# # =============================================================================
+# # Pure Python implememntation, compare to Cython version for testing
+# # =============================================================================
+# class HyperSphere_test(HyperSphere):
+#     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
+#     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
+#     interval (0, pi).
+#     """
+#     def __init__(self, dim, zeta=[]):
+#         m = dim*(dim-1)//2
+#         self.dim = dim
+#         if isinstance(zeta, (list, tuple)) and len(zeta):
+#             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
+#         elif isinstance(zeta, (int, float, np.float64, np.int64)):
+#             zeta = [zeta]
+#         else:
+#             zeta = [pi/4.0]*m
+#         zeta_lt = np.zeros((dim, dim))
+#         # lower triangular indices, offset -1 to get below-diagonal elements
+#         for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
+#             zeta_lt[ind] = th
+#         # set the diagonal to 1
+#         for i in range(dim):
+#             zeta_lt[i,i] = 1.0
+#         self.zeta = zeta_lt
+#         self._lt = self._lower_triangular()
+#             
+#     def _lower_triangular(self):
+#         dim = self.dim
+#         zeta = self.zeta
+#         L = np.zeros((dim, dim), dtype=np.float64)
+#         L[0,0] = 1.0
+#         for r in range(1,dim):
+#             for s in range(r):
+#                 L[r,s] = cos(zeta[r,s])
+#                 for j in range(s):
+#                     L[r,s] *= sin(zeta[r,j])
+#             L[r,r] = 1.0
+#             for j in range(r):
+#                 L[r,r] *= sin(zeta[r,j])
+#         return L
+#     
+#     @property
+#     def correlation(self):
+#         lt = self._lt
+#         return lt.dot(lt.T)
+# 
+#     def _lower_triangular_derivative(self):
+#         dim = self.dim
+#         zeta = self.zeta
+#         #dL[0,0] = 0.0
+#         dLstack = []
+#         for dr, ds in zip(*np.tril_indices(dim, -1)):
+#             dL = np.zeros((dim, dim), dtype=np.float64)
+#             for s in range(dr):
+#                 if 0 <= ds <= s:
+#                     dL[dr,s] = cos(zeta[dr,s]) if s != ds else -sin(zeta[dr,s])
+#                     for j in range(s):
+#                         dL[dr,s] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
+#             dL[dr,dr] = 1.0 
+#             for j in range(dr):
+#                 dL[dr,dr] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
+#             dLstack.append(dL)
+#         return dLstack
+#     
+#     def gradient(self):
+#         L = self._lt
+#         dLstack = self._lower_triangular_derivative()
+#         gradstack = []
+#         for dL in dLstack:
+#             dLLt = dL.dot(L.T)
+#             grad = dLLt + dLLt.T
+#             gradstack.append(grad)
+#         return gradstack   
 # =============================================================================
-class HyperSphere(object):
-    """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
-    using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
-    interval (0, pi).
-    """
-    def __init__(self, dim, zeta=[]):
-        m = dim*(dim-1)//2
-        self.dim = dim
-        if isinstance(zeta, (list, tuple, np.ndarray)) and len(zeta):
-            assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
-        elif isinstance(zeta, (int, float, np.float64, np.int64)):
-            zeta = [zeta]
-        else:
-            zeta = [pi/4.0]*m
-        zeta_lt = np.zeros((dim, dim))
-        # lower triangular indices, offset -1 to get below-diagonal elements
-        for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
-            zeta_lt[ind] = th
-        # set the diagonal to 1
-        for i in range(dim):
-            zeta_lt[i,i] = 1.0
-        self.zeta = zeta_lt
-        self._lt = None
-        #self._lt = self._lower_triangular()
-            
-    # see HyperSphere_test for pure Python equivalent
-    def _lower_triangular(self):
-        if self._lt is None:
-            self._lt = hs.HyperSphere_lower_triangular(self.dim, self.zeta)
-        return self._lt
-    
-    @property
-    def correlation(self):
-        lt = self._lower_triangular()
-        return lt.dot(lt.T)
-
-    # see HyperSphere_test for pure Python equivalent
-    def _lower_triangular_derivative(self):
-        dim = self.dim
-        zeta = self.zeta
-        dLstack = []
-        for dr, ds in zip(*np.tril_indices(dim, -1)):
-            dL = hs.HyperSphere_lower_triangular_derivative(dim, zeta, dr, ds)
-            dLstack.append(dL)
-        return dLstack
-    
-    def gradient(self):
-        L = self._lower_triangular()
-        dLstack = self._lower_triangular_derivative()
-        gradstack = []
-        for dL in dLstack:
-            dLLt = dL.dot(L.T)
-            grad = dLLt + dLLt.T
-            gradstack.append(grad)
-        return gradstack
-    
-# =============================================================================
-# Pure Python implememntation, compare to Cython version for testing
-# =============================================================================
-class HyperSphere_test(HyperSphere):
-    """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
-    using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
-    interval (0, pi).
-    """
-    def __init__(self, dim, zeta=[]):
-        m = dim*(dim-1)//2
-        self.dim = dim
-        if isinstance(zeta, (list, tuple)) and len(zeta):
-            assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
-        elif isinstance(zeta, (int, float, np.float64, np.int64)):
-            zeta = [zeta]
-        else:
-            zeta = [pi/4.0]*m
-        zeta_lt = np.zeros((dim, dim))
-        # lower triangular indices, offset -1 to get below-diagonal elements
-        for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
-            zeta_lt[ind] = th
-        # set the diagonal to 1
-        for i in range(dim):
-            zeta_lt[i,i] = 1.0
-        self.zeta = zeta_lt
-        self._lt = self._lower_triangular()
-            
-    def _lower_triangular(self):
-        dim = self.dim
-        zeta = self.zeta
-        L = np.zeros((dim, dim), dtype=np.float64)
-        L[0,0] = 1.0
-        for r in range(1,dim):
-            for s in range(r):
-                L[r,s] = cos(zeta[r,s])
-                for j in range(s):
-                    L[r,s] *= sin(zeta[r,j])
-            L[r,r] = 1.0
-            for j in range(r):
-                L[r,r] *= sin(zeta[r,j])
-        return L
-    
-    @property
-    def correlation(self):
-        lt = self._lt
-        return lt.dot(lt.T)
-
-    def _lower_triangular_derivative(self):
-        dim = self.dim
-        zeta = self.zeta
-        #dL[0,0] = 0.0
-        dLstack = []
-        for dr, ds in zip(*np.tril_indices(dim, -1)):
-            dL = np.zeros((dim, dim), dtype=np.float64)
-            for s in range(dr):
-                if 0 <= ds <= s:
-                    dL[dr,s] = cos(zeta[dr,s]) if s != ds else -sin(zeta[dr,s])
-                    for j in range(s):
-                        dL[dr,s] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
-            dL[dr,dr] = 1.0 
-            for j in range(dr):
-                dL[dr,dr] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
-            dLstack.append(dL)
-        return dLstack
-    
-    def gradient(self):
-        L = self._lt
-        dLstack = self._lower_triangular_derivative()
-        gradstack = []
-        for dL in dLstack:
-            dLLt = dL.dot(L.T)
-            grad = dLLt + dLLt.T
-            gradstack.append(grad)
-        return gradstack
+        
     
     
 # =============================================================================
 # Assumes X includes a factor f which has been dummy coded into columns
 # F = (f_0, f_1, ... f_dim-1)
-# Use with ProjectionKernel to extract the columns
+# Use with Projection to extract the columns
 # =============================================================================
 class FactorKernel(Kernel):
     def __init__(self, dim, zeta=[], zeta_bounds=(0.0, pi)): # add 2*pi in hopes of eliminating difficulties with log transform
@@ -370,7 +391,7 @@ class FactorKernel(Kernel):
         if eval_gradient:
             if Y is not None:
                 raise ValueError("Gradient can only be evaluated when Y is None.")
-            G = h.gradient()
+            G = h.gradient
             # G is a list of arrays
             assert all(g.shape[0] == X.shape[1] for g in G), "Incompatible dimensions"
             grad = []
@@ -420,41 +441,50 @@ class FactorKernel(Kernel):
     
     @property
     def hyperparameter_zeta(self):
-        n_elts = len(self.zeta) if np.iterable(self.zeta) else 1
+        #n_elts = len(self.zeta) if np.iterable(self.zeta) else 1
+        dim = self.dim
+        m = dim * (dim - 1) // 2
         return  Hyperparameter(name="zeta", 
                                value_type="numeric", 
                                bounds=self.zeta_bounds, 
-                               n_elements=n_elts,
+                               n_elements=m,
                                log=False)
 
 class ExchangeableCorrelation(Kernel):
-    def __init__(self, correlation, correlation_bounds=(0.0, 1.0)):
+    def __init__(self, dim, correlation, correlation_bounds=(0.0, 1.0)):
+        self.dim = dim
         self.correlation = correlation
         self.correlation_bounds = correlation_bounds
         
     def __call__(self, X, Y=None, eval_gradient=False):
         X = np.atleast_2d(X)
+        dim = self.dim
+        assert dim == X.shape[1], "Dimension mismatch"
+
         if Y is None:
             Y = X
         elif eval_gradient:
             raise ValueError("Gradient can only be evaluated when Y is None.")
         assert X.shape[1] == Y.shape[1], "Dimension mismatch for X and Y"
-        
-        dim = X.shape[1]
-        
-        C = self.correlation * np.ones((dim,dim), dytpe=np.float64)
-        np.fill_diagonal(C, 0.0)
+                
+        # correlation is a single number between 0 and 1
+        C = self.correlation * np.ones((dim,dim), dtype=np.float64)
+        np.fill_diagonal(C, 1.0)
         
         K = X.dot(C).dot(Y.T)
         
         if eval_gradient:
             if not self.hyperparameter_constant_value.fixed:
                 # For untransformed coordinates:
-                #gradient = np.ones((dim,dim), dytpe=np.float64)
+                #K_gradient = np.ones((dim,dim), dytpe=np.float64)
                 #np.fill_diagonal(K_gradient, 0.0)
                 #K_gradient = X.dot(K_gradient).dot(X.T)
                 # If log-transformed:
-                return (K, np.dstack([K]))
+                # n.b. don't bother copying C since we're done with it otherwise
+                K_gradient = C
+                np.fill_diagonal(K_gradient, 0.0)
+                K_gradient = X.dot(K_gradient).dot(X.T)
+                return (K, np.dstack([K_gradient]))
             else:
                 return K, np.empty((X.shape[0], X.shape[0], 0))
         else:
@@ -477,22 +507,99 @@ class ExchangeableCorrelation(Kernel):
         K_diag : array, shape (n_samples_X,)
             Diagonal of kernel k(X, X)
         """
-        return self.constant_value * np.ones(X.shape[0])
+        return np.ones(X.shape[0])
 
+    def is_stationary(self):
+        return True
+    
+    def __repr__(self):
+        return "{0:.3g}**2".format(np.sqrt(self.correlation))        
+        
+    @property
+    def hyperparameter_correlation(self):
+        return  Hyperparameter(name="correlation", 
+                               value_type="numeric", 
+                               bounds=self.correlation_bounds, 
+                               n_elements=1,
+                               log=False)
+
+class MultiplicativeCorrelation(Kernel):
+    def __init__(self, dim, correlation, correlation_bounds=(0.0, 1.0)):
+        self.dim = dim
+        self.correlation = correlation
+        self.correlation_bounds = correlation_bounds
+        
+    def __call__(self, X, Y=None, eval_gradient=False):
+        X = np.atleast_2d(X)
+        if Y is None:
+            Y = X
+        elif eval_gradient:
+            raise ValueError("Gradient can only be evaluated when Y is None.")
+        assert X.shape[1] == Y.shape[1], "Dimension mismatch for X and Y"
+        
+        dim = X.shape[1]
+        
+        # correlation is a single number between 0 and 1
+        C = self.correlation * np.ones((dim,dim), dtype=np.float64)
+        np.fill_diagonal(C, 1.0)
+        
+        K = X.dot(C).dot(Y.T)
+        
+        if eval_gradient:
+            if not self.hyperparameter_constant_value.fixed:
+                # For untransformed coordinates:
+                #K_gradient = np.ones((dim,dim), dytpe=np.float64)
+                #np.fill_diagonal(K_gradient, 0.0)
+                #K_gradient = X.dot(K_gradient).dot(X.T)
+                # If log-transformed:
+                # n.b. don't bother copying C since we're done with it otherwise
+                K_gradient = C
+                np.fill_diagonal(K_gradient, 0.0)
+                K_gradient = X.dot(K_gradient).dot(X.T)
+                return (K, np.dstack([K_gradient]))
+            else:
+                return K, np.empty((X.shape[0], X.shape[0], 0))
+        else:
+            return K
+
+    def diag(self, X):
+        """Returns the diagonal of the kernel k(X, X).
+
+        The result of this method is identical to np.diag(self(X)); however,
+        it can be evaluated more efficiently since only the diagonal is
+        evaluated.
+
+        Parameters
+        ----------
+        X : array, shape (n_samples_X, n_features)
+            Left argument of the returned kernel k(X, Y)
+
+        Returns
+        -------
+        K_diag : array, shape (n_samples_X,)
+            Diagonal of kernel k(X, X)
+        """
+        return np.ones(X.shape[0])
+
+    def is_stationary(self):
+        return False
+    
     def __repr__(self):
         return "{0:.3g}**2".format(np.sqrt(self.constant_value))        
         
     @property
     def hyperparameter_c(self):
-        return  Hyperparameter(name="c", 
+        return  Hyperparameter(name="correlation", 
                                value_type="numeric", 
                                bounds=self.c_bounds, 
-                               n_elements=1,
+                               n_elements=self.dim,
                                log=False)
 
+
+
 class Tensor(CompoundKernel):
-    def __init__(self, *args):
-        super(Tensor, self).__init__(args)
+    def __init__(self, kernels):
+        super(Tensor, self).__init__(kernels)
         
     def __call__(self, X, Y=None, eval_gradient=False):
         """Computes product of all the kernels (and gradients)"""
@@ -510,9 +617,12 @@ class Tensor(CompoundKernel):
             return reduce(lambda k0, k1 : k0 * k1,
                           (k(X, Y, eval_gradient=False) for k in self.kernels))
             
+    def diag(self, X):
+        return reduce(lambda d0, d1 : d0 * d1, (k.diag(X) for k in self.kernels))
+            
 class DirectSum(CompoundKernel):
-    def __init__(self, *args):
-        super(DirectSum, self).__init__(args)
+    def __init__(self, kernels):
+        super(DirectSum, self).__init__(kernels)
         
     def __call__(self, X, Y=None, eval_gradient=False):
         """Computes product of all the kernels (and gradients)"""
@@ -527,6 +637,10 @@ class DirectSum(CompoundKernel):
         else:
             return reduce(lambda k0, k1 : k0 + k1,
                           (k(X, Y, eval_gradient=False) for k in self.kernels))
+
+    def diag(self, X):
+        return reduce(lambda d0, d1 : d0 + d1, (k.diag(X) for k in self.kernels))
+
 
 class SimpleFactorKernel(Tensor):
     """Alternative implementation of SimpleCategoricalKernel
@@ -546,12 +660,40 @@ class SimpleFactorKernel(Tensor):
 #        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
 #        self.column = [column] if isinstance(column, int) else column
 #        assert all(isinstance(i, int) for i in self.column), "must be integers"
+        self.columns = columns        
         
-        kernels = [ProjectionKernel(RBF(), [c]) for c in columns]
 
+        kernels = [Projection(RBF(), [c]) for c in columns]
+                                    #factor_name(c)) for c in columns]
+    
         # collect all the kernels to be combined into a single product kernel
-        super(SimpleFactorKernel, self).__init__(*kernels)    
-        
+        super(SimpleFactorKernel, self).__init__(kernels)    
+
+    def get_params(self, deep=True):
+        """Get parameters of this kernel.
+
+        Parameters
+        ----------
+        deep: boolean, optional
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+
+        Returns
+        -------
+        params : mapping of string to any
+            Parameter names mapped to their values.
+        """
+        #params = dict(kernel=self.kernel, dim=self.dim)
+        params = dict(columns=self.columns)
+        if deep:
+            for i, kernel in enumerate(self.kernels):
+                print("--->", "\ti = ", i, "\tkernel = ", kernel)
+                deep_items = kernel.get_params().items()
+                #params.update((k, val) for k, val in deep_items)
+                for k, val in deep_items:
+                    print("\tkey = ", k, "\tvalue = ", val)
+                params.update(('k{}__{}'.format(i, k), val) for k, val in deep_items)
+        return params        
         
 class SimpleCategoricalKernel(Kernel):
     def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
@@ -569,7 +711,7 @@ class SimpleCategoricalKernel(Kernel):
 #        assert all(isinstance(i, int) for i in self.column), "must be integers"
         self.dim = dim
         
-        kernels = [ProjectionKernel(RBF(), [c]) for c in range(dim)]
+        kernels = [Projection(RBF(), [c]) for c in range(dim)]
 
         # combine the kernels into a single product kernel
         self.kernel = reduce(lambda k0, k1 : k0 * k1, kernels)
@@ -591,7 +733,7 @@ class SimpleCategoricalKernel(Kernel):
     
 # =============================================================================
 # Propose a UnaryOperator class to include Exponentiation kernel, 
-# ProjectionKernel, SimpleCategoricalKernel, and so on
+# Projection, SimpleCategoricalKernel, and so on
 # The sequel is copied wholesale from ExponentiationKernel
 # =============================================================================
     def get_params(self, deep=True):
@@ -703,7 +845,7 @@ if __name__ == "__main__":
     X = np.array([[1,2,3,0],[2,1,3,0],[2,2,3,1],[1,4,3,2]])
     # note only two dimensions are being retained by the projection
     rbf = RBF(length_scale=np.ones(2))
-    fubar = ProjectionKernel(rbf, [2,3], "proj")
+    fubar = Projection(rbf, [2,3], "proj")
     K = fubar(X)
     print("Projection Kernel:\n", K)
     print("Diagonal:\n", fubar.diag(X))

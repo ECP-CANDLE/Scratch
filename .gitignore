@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 run*.json
 *.log
@@ -5,3 +6,9 @@ run*.json
 .spyproject/codestyle.ini
 *.ini
 
+=======
+*.pyc
+.spyproject/codestyle.ini
+*.ini
+*.DS_Store
+>>>>>>> 37966831eace86dc4e32030a30904cb1792d213a

@@ -311,7 +311,7 @@ if __name__ == "__main__":
     td = TimeitData()
 
     N = 200
-    max_dim = 31 # was 61; suppress test code
+    max_dim = 31 # was 61; suppress test code when set to 2
     
     usec = 1e6 / N
     
