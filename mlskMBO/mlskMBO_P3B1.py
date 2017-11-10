@@ -65,7 +65,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 import logging
-logging.basicConfig(filename='mlskMBO.log',level=logging.DEBUG)
+logging.basicConfig(filename='mlskMBO.log', level=logging.DEBUG)
 
 # =============================================================================
 # CONFIGURATION done here for now
@@ -214,7 +214,7 @@ class Run_P3B1(object):
                  default_params=DEFAULT_PARAMS,
                  output_subdirectory=OUTPUT_SUBDIRECTORY,
                  solr_url=None
-                 ):
+                ):
         """
         default_params:  typically read from p3b1_default_model.txt
         output_subdirectory: passed to keras as 'save' parameter
