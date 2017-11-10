@@ -1,0 +1,21 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct 31 15:40:17 2017
+
+@author: johnbauer
+"""
+from __future__ import print_function
+
+import numpy as np
+import sklearn.gaussian_process.kernels as krn
+
+c = krn.CompoundKernel([krn.RBF(), krn.RBF([1,1])])
+
+print (c.n_dims)
+print (c.theta)
+print([k.theta for k in c.kernels])
+
+c.theta = np.array([1,2])
+
+print(c.theta)

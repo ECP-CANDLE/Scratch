@@ -231,7 +231,7 @@ class DiscreteParameter(Parameter):
             #print("Parameter[{}] | decode {}:{}".format(self.key, dname, dvalue))
             if dname == self.key:
                 # no dummies were created, e.g. NT3 batch_size
-                return { self.key : dvalue }
+                return { self.key : self.validate(dvalue) }
             root = dname[:len(self.key)]
             if self.key == root:
                 values[dname] = dvalue
@@ -245,6 +245,13 @@ class DiscreteParameter(Parameter):
             #return {}
             #print("returning [ {}:{} ]".format(self.key, dummies.get(self.key)))
             return {self.key : dummies.get(self.key, "")}
+        
+# =============================================================================
+# def BooleanParameter(DiscreteParameter):
+#     def __init__(self, key):
+#         super(BooleanParameter, self).__init__(key, [False, True], "|")         
+# =============================================================================
+        
 # =============================================================================
 #     def decode_dummies(self, dummies):
 #         """dummies is a dict having names of the form 'key|categoryvalue' 
