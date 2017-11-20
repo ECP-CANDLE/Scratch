@@ -1,0 +1,9 @@
+#!/bin/zsh
+set -eu
+
+javac Regularizer.java |& head -20
+java  Regularizer f.txt g.txt $1
+
+echo
+echo g.txt
+< g.txt
