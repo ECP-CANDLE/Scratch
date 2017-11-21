@@ -8,10 +8,9 @@ Created on Mon Oct  9 09:09:33 2017
 from __future__ import print_function
 
 from hypersphere import HyperSphere
-import hypersphere_cython as hs
-#import CategoricalKernel as ck
+#import hypersphere_cython as hs
 
-from math import pi, sin, cos
+from math import pi, sin, cos, log, sqrt
 import logging
 import numpy as np
 import pandas as pd
@@ -19,7 +18,10 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Kernel
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel, CompoundKernel
 from sklearn.gaussian_process.kernels import Hyperparameter
+from sklearn.gaussian_process.kernels import NormalizedKernelMixin
 from sklearn.preprocessing import StandardScaler
+from scipy.linalg import cholesky
+
 
 logging.basicConfig(filename='CategoricalKernel.log',level=logging.DEBUG)
 
@@ -48,7 +50,7 @@ class Projection(Kernel):
         self.columns = columns
         # if this gets too tedious go back to using pandas,
         # which handles int/list of ints transparently
-        assert isinstance(columns, (list, tuple, int)), "must be int or list of ints"
+        assert isinstance(columns, (list, tuple, int, np.ndarray)), "must be int or list of ints"
         self.columns = [columns] if isinstance(columns, int) else columns
         assert all(isinstance(i, int) for i in self.columns), "must be integers"
         
@@ -89,7 +91,7 @@ class Projection(Kernel):
         params : mapping of string to any
             Parameter names mapped to their values.
         """
-        params = dict(kernel=self.kernel, columns=self.columns)
+        params = dict(kernel=self.kernel, columns=self.columns, name=self.name)
         #params = dict(columns=self.columns)
         #name_ = "{}{}__".format(self.name, self.columns)
         if deep:
@@ -177,7 +179,7 @@ class Projection(Kernel):
     
     def __repr__(self):
         if self.name:
-            return "{{Factor {1} -> {0}}}".format(self.kernel, self.name)
+            return "{{Factor[{1}] -> {0}}}".format(self.kernel, self.name)
         else:
             return "{{Project{1} -> {0}}}".format(self.kernel, self.columns)
 
@@ -361,12 +363,13 @@ class DefunctExchangeableKernel(Kernel):
 # F = (f_0, f_1, ... f_dim-1)
 # Use with Projection to extract the columns
 # =============================================================================
-class FactorKernel(Kernel):
+class FactorKernel(NormalizedKernelMixin, Kernel):
     def __init__(self, dim, zeta=[], zeta_bounds=(0.0, pi)): # add 2*pi in hopes of eliminating difficulties with log transform
         # TODO: fix this so zeta can be a list or array
         self.dim = dim
         m = dim*(dim-1)/2
-        zeta = zeta if zeta else [pi/4.0]*m
+        zeta = np.array(zeta, dtype=np.float64)
+        zeta = zeta if len(zeta) else np.array([pi/4.0]*m, dtype=np.float64)
         assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
         self.zeta = zeta
         self.zeta_bounds = zeta_bounds
@@ -433,8 +436,10 @@ class FactorKernel(Kernel):
         else:
             return K
         
-    def diag(self, X):
-        return np.ones([X.shape[0]], dtype=np.float64)
+# =============================================================================
+#     def diag(self, X):
+#         return np.ones([X.shape[0]], dtype=np.float64)
+# =============================================================================
 
     def is_stationary(self):
         return False
@@ -451,10 +456,10 @@ class FactorKernel(Kernel):
                                log=False)
 
 class ExchangeableCorrelation(Kernel):
-    def __init__(self, dim, correlation, correlation_bounds=(0.0, 1.0)):
+    def __init__(self, dim, zeta, zeta_bounds=(0.0, 1.0)):
         self.dim = dim
-        self.correlation = correlation
-        self.correlation_bounds = correlation_bounds
+        self.zeta = zeta
+        self.zeta_bounds = zeta_bounds
         
     def __call__(self, X, Y=None, eval_gradient=False):
         X = np.atleast_2d(X)
@@ -467,14 +472,13 @@ class ExchangeableCorrelation(Kernel):
             raise ValueError("Gradient can only be evaluated when Y is None.")
         assert X.shape[1] == Y.shape[1], "Dimension mismatch for X and Y"
                 
-        # correlation is a single number between 0 and 1
-        C = self.correlation * np.ones((dim,dim), dtype=np.float64)
-        np.fill_diagonal(C, 1.0)
+        # correlation zeta is a single number between 0 and 1
+        C = self.correlation
         
         K = X.dot(C).dot(Y.T)
         
         if eval_gradient:
-            if not self.hyperparameter_constant_value.fixed:
+            if not self.hyperparameter_zeta.fixed:
                 # For untransformed coordinates:
                 #K_gradient = np.ones((dim,dim), dytpe=np.float64)
                 #np.fill_diagonal(K_gradient, 0.0)
@@ -490,6 +494,15 @@ class ExchangeableCorrelation(Kernel):
         else:
             return K
 
+    @property
+    def correlation(self):
+        # correlation zeta is a single number between 0 and 1
+        dim = self.dim
+        C = np.empty((dim,dim), dtype=np.float64)
+        C.fill(self.zeta)
+        np.fill_diagonal(C, 1.0)
+        return C
+    
     def diag(self, X):
         """Returns the diagonal of the kernel k(X, X).
 
@@ -513,21 +526,37 @@ class ExchangeableCorrelation(Kernel):
         return True
     
     def __repr__(self):
-        return "{0:.3g}**2".format(np.sqrt(self.correlation))        
+        return "ExchangeableCorrelation({0:.3g})".format(self.zeta)        
         
     @property
-    def hyperparameter_correlation(self):
-        return  Hyperparameter(name="correlation", 
+    def hyperparameter_zeta(self):
+        return  Hyperparameter(name="zeta", 
                                value_type="numeric", 
-                               bounds=self.correlation_bounds, 
+                               bounds=self.zeta_bounds, 
                                n_elements=1,
                                log=False)
 
-class MultiplicativeCorrelation(Kernel):
-    def __init__(self, dim, correlation, correlation_bounds=(0.0, 1.0)):
+    def initialize_multiplicative_correlation(self):
+        """Calculates the values used to initialize MultiplicativeCorrelation"""
+        c = self.zeta
+        c = c if c < 0.99999 else 0.99999
+        c = c if c > 0.00001 else 0.00001
+        
+        theta = -log(c) / 2.0 
+        
+        mc = np.empty(self.dim)
+        mc.fill(theta)
+        return mc
+    
+# =============================================================================
+# TODO: decide if dim should be removed as a parameter for all these kernels
+# use quadratic formula d = (sqrt(8*m + 1) + 1) // 2 to assert validity
+# =============================================================================
+class MultiplicativeCorrelation(NormalizedKernelMixin, Kernel):
+    def __init__(self, dim, zeta, zeta_bounds=(0.0, 1.e6)):
         self.dim = dim
-        self.correlation = correlation
-        self.correlation_bounds = correlation_bounds
+        self.zeta = np.array(zeta, dtype=np.float64)
+        self.zeta_bounds = zeta_bounds
         
     def __call__(self, X, Y=None, eval_gradient=False):
         X = np.atleast_2d(X)
@@ -537,64 +566,98 @@ class MultiplicativeCorrelation(Kernel):
             raise ValueError("Gradient can only be evaluated when Y is None.")
         assert X.shape[1] == Y.shape[1], "Dimension mismatch for X and Y"
         
-        dim = X.shape[1]
+        dim = self.dim
+        assert dim == X.shape[1], "Dimension mismatch"
+        assert dim == len(self.zeta), "Wrong number of parameters given"
         
-        # correlation is a single number between 0 and 1
-        C = self.correlation * np.ones((dim,dim), dtype=np.float64)
-        np.fill_diagonal(C, 1.0)
+        C = self.correlation
         
         K = X.dot(C).dot(Y.T)
         
         if eval_gradient:
-            if not self.hyperparameter_constant_value.fixed:
+            if not self.hyperparameter_zeta.fixed:
                 # For untransformed coordinates:
                 #K_gradient = np.ones((dim,dim), dytpe=np.float64)
                 #np.fill_diagonal(K_gradient, 0.0)
                 #K_gradient = X.dot(K_gradient).dot(X.T)
                 # If log-transformed:
                 # n.b. don't bother copying C since we're done with it otherwise
-                K_gradient = C
+                K_gradient = -C
                 np.fill_diagonal(K_gradient, 0.0)
                 K_gradient = X.dot(K_gradient).dot(X.T)
-                return (K, np.dstack([K_gradient]))
+                return (K, np.tile(K_gradient[:,:,np.newaxis], (1, 1, dim)))
             else:
                 return K, np.empty((X.shape[0], X.shape[0], 0))
         else:
             return K
 
-    def diag(self, X):
-        """Returns the diagonal of the kernel k(X, X).
-
-        The result of this method is identical to np.diag(self(X)); however,
-        it can be evaluated more efficiently since only the diagonal is
-        evaluated.
-
-        Parameters
-        ----------
-        X : array, shape (n_samples_X, n_features)
-            Left argument of the returned kernel k(X, Y)
-
-        Returns
-        -------
-        K_diag : array, shape (n_samples_X,)
-            Diagonal of kernel k(X, X)
-        """
-        return np.ones(X.shape[0])
+    @property
+    def correlation(self):
+        # zeta is a vector of length dim
+        c = -self.zeta
+        C = np.exp(c[:, np.newaxis] + c[np.newaxis, :])
+        np.fill_diagonal(C, 1.0)
+        return C
+# =============================================================================
+#     def diag(self, X):
+#         """Returns the diagonal of the kernel k(X, X).
+# 
+#         The result of this method is identical to np.diag(self(X)); however,
+#         it can be evaluated more efficiently since only the diagonal is
+#         evaluated.
+# 
+#         Parameters
+#         ----------
+#         X : array, shape (n_samples_X, n_features)
+#             Left argument of the returned kernel k(X, Y)
+# 
+#         Returns
+#         -------
+#         K_diag : array, shape (n_samples_X,)
+#             Diagonal of kernel k(X, X)
+#         """
+#         return np.ones(X.shape[0])
+# =============================================================================
 
     def is_stationary(self):
         return False
     
-    def __repr__(self):
-        return "{0:.3g}**2".format(np.sqrt(self.constant_value))        
+# =============================================================================
+#     def __repr__(self):
+#         return "{0:.3g}**2".format(np.sqrt(self.zeta))        
+# =============================================================================
         
     @property
-    def hyperparameter_c(self):
-        return  Hyperparameter(name="correlation", 
+    def hyperparameter_zeta(self):
+        return  Hyperparameter(name="zeta", 
                                value_type="numeric", 
-                               bounds=self.c_bounds, 
+                               bounds=self.zeta_bounds, 
                                n_elements=self.dim,
                                log=False)
 
+    def initialize_unrestrictive_correlation(self):
+        """Calculate parameters to initialize UnrestrictedCorrelation kernel"""
+        # assume all entries are positive, will be true if produced by MC model
+
+        t = np.array(self.zeta, dtype=np.float64)
+        t = np.exp(-t)
+        t = np.atleast_2d(t)
+        T = t.T.dot(t)
+        np.fill_diagonal(T, 1.0)
+        L = cholesky(T, lower=True)
+        C = np.zeros_like(L)
+        S = np.zeros_like(L)
+        dim = L.shape[0]
+        for r in range(1, dim):
+            C[r,0] = L[r,0]
+            prod = sqrt(1.0 - C[r,0]**2)
+            S[r,0] = prod
+            for s in range(1,r):
+                C[r,s] = L[r,s]/prod
+                S[r,s] = sqrt(1.0 - C[r,s]**2)
+                prod *= S[r,s]
+            print("check: {} = {} : difference {}".format(L[r,r], prod, L[r,r] - prod))
+        return np.arccos(C[np.tril_indices(dim, -1)])
 
 
 class Tensor(CompoundKernel):

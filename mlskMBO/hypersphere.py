@@ -6,7 +6,8 @@ Created on Thu Nov  2 09:49:13 2017
 @author: johnbauer
 """
 from __future__ import print_function
-from math import pi, sin, cos
+from math import pi, sin, cos, sqrt, acos
+from scipy.linalg import cholesky
 
 import random
 import timeit
@@ -32,10 +33,13 @@ class HyperSphere(object):
             zeta = [pi/4.0]*m
         zeta_lt = np.zeros((dim, dim))
         # lower triangular indices, offset -1 to get below-diagonal elements
-        for z, ind in zip(zeta, zip(*np.tril_indices(dim, -1))):
-            zeta_lt[ind] = z
+        zeta_lt[np.tril_indices(dim, -1)] = np.array(zeta, dtype=np.float64)
         # set the diagonal to 1
-        #np.fill_diagonal(zeta_lt.s, 1.0)
+        np.fill_diagonal(zeta_lt, 1.0)
+#        for z, ind in zip(zeta, zip(*np.tril_indices(dim, -1))):
+#            zeta_lt[ind] = z
+#        # set the diagonal to 1
+#        #np.fill_diagonal(zeta_lt.s, 1.0)
 
         self.zeta = zeta_lt
         
@@ -111,9 +115,34 @@ class HyperSphere(object):
         for dL in dLstack:
             dLLt = dL.dot(L.T)
             grad = dLLt + dLLt.T
+            np.fill_diagonal(grad, 0)
             gradstack.append(grad)
         return gradstack
     
+    # TODO: migrate this to MultiplicativeCorrelation kernel 
+    @staticmethod
+    def zeta(mult_correlations):
+        # assume all entries are positive, will be true if produced by MC model
+
+        t = np.array(mult_correlations, dtype=np.float64)
+        t = np.exp(-t)
+        t = np.atleast_2d(t)
+        T = t.T.dot(t)
+        np.fill_diagonal(T, 1.0)
+        L = cholesky(T, lower=True)
+        C = np.zeros_like(L)
+        S = np.zeros_like(L)
+        dim = L.shape[0]
+        for r in range(1, dim):
+            C[r,0] = L[r,0]
+            prod = sqrt(1.0 - C[r,0]**2)
+            S[r,0] = prod
+            for s in range(1,r):
+                C[r,s] = L[r,s]/prod
+                S[r,s] = sqrt(1.0 - C[r,s]**2)
+                prod *= S[r,s]
+            print("check: {} = {} : difference {}".format(L[r,r], prod, L[r,r] - prod))
+        return np.arccos(C[np.tril_indices(dim, -1)])
 # =============================================================================
 # Pure Python implememntation, compare to Cython version for testing
 # =============================================================================
@@ -131,13 +160,11 @@ class HyperSphere_pure(HyperSphere):
             zeta = [zeta]
         else:
             zeta = [pi/4.0]*m
-        zeta_lt = np.zeros((dim, dim))
+        zeta_lt = np.zeros((dim, dim), dtype=np.float64)
         # lower triangular indices, offset -1 to get below-diagonal elements
-        for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
-            zeta_lt[ind] = th
-        # set the diagonal to 1
-        for i in range(dim):
-            zeta_lt[i,i] = 1.0
+        zeta_lt[np.tril_indices(dim, -1)] = np.array(zeta, dtype=np.float64)
+#        # set the diagonal to 1
+#        np.fill_diagonal(zeta_lt, 1.0)
         self.zeta = zeta_lt
         self._lt = None
         #self._lt = self._lower_triangular()
@@ -262,7 +289,7 @@ if __name__ == "__main__":
         print("\nChecking Correlation for equivalence to pure python")
         diff = hc.correlation - hp.correlation
         print(diff.min(), diff.max())
-        print("time should be zero")
+        print("Difference should be zero")
         print("\nChecking Gradient for equivalence to pure python")
         for gc, gp in zip(hc.gradient, hp.gradient):
             diff = gc - gp
@@ -311,7 +338,7 @@ if __name__ == "__main__":
     td = TimeitData()
 
     N = 200
-    max_dim = 31 # was 61; suppress test code when set to 2
+    max_dim = 31 #31 # was 61; suppress test code when set to 2
     
     usec = 1e6 / N
     

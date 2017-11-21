@@ -8,6 +8,8 @@ Created on Wed Oct 25 08:54:59 2017
 import numpy as np
 
 import cython
+from cython.parallel cimport prange
+cimport openmp
 
 cimport numpy as np
 from libc.math cimport sin, cos, pi
@@ -28,10 +30,13 @@ def initialize_trig_values(int dim,
     cdef FLOAT64_t [:, :] C = cos_zeta
     cdef FLOAT64_t [:, :] S = sin_zeta
     
-    for i in range(dim):
-        for j in range(i):
-            C[i,j] = cos(z[i,j])
-            S[i,j] = sin(z[i,j])
+    cdef int i, j
+    
+    with nogil:
+        for i in prange(dim):
+            for j in prange(i):
+                C[i,j] = cos(z[i,j])
+                S[i,j] = sin(z[i,j])
             
 
 @cython.boundscheck(False)
@@ -50,17 +55,18 @@ def HyperSphere_lower_triangular(np.ndarray L_arr,
     cdef int r, s, j
     cdef FLOAT64_t L_rs
     
-    L[0,0] = 1.0
-    for r in range(dim):
-        L_rs = 1.0
-        for j in range(r):
-            L_rs *= S[r,j]
-        L[r,r] = L_rs
-        for s in range(r):
-            L_rs = C[r,s]
-            for j in range(s):
+    with nogil:
+        L[0,0] = 1.0
+        for r in prange(dim):
+            L_rs = 1.0
+            for j in prange(r):
                 L_rs *= S[r,j]
-            L[r,s] = L_rs
+            L[r,r] = L_rs
+            for s in prange(r):
+                L_rs = C[r,s]
+                for j in prange(s):
+                    L_rs *= S[r,j]
+                L[r,s] = L_rs
     #return L_arr
 
 # =============================================================================
@@ -84,19 +90,20 @@ def HyperSphere_lower_triangular_derivative(np.ndarray dL_arr,
     cdef FLOAT64_t [:, :] S = sin_zeta
     
     cdef FLOAT64_t dL_drs
-    cdef size_t r, s, j
+    cdef int r, s, j
     
-    for s in range(dr):
-        if ds <= s:
-            dL_drs = C[dr,s] if s != ds else -S[dr,s]
-            for j in range(s):
-                dL_drs *= S[dr,j] if j != ds else C[dr,j]
-            dL[dr,s] = dL_drs
-    # now set the diagonal, i.e. s = dr
-    dL_drs = 1.0 
-    for j in range(dr):
-        dL_drs *= S[dr,j] if j != ds else C[dr,j]
-    dL[dr,dr] = dL_drs
+    with nogil:
+        for s in prange(dr):
+            if ds <= s:
+                dL_drs = C[dr,s] if s != ds else -S[dr,s]
+                for j in prange(s):
+                    dL_drs *= S[dr,j] if j != ds else C[dr,j]
+                dL[dr,s] = dL_drs
+        # now set the diagonal, i.e. s = dr
+        dL_drs = 1.0 
+        for j in prange(dr):
+            dL_drs *= S[dr,j] if j != ds else C[dr,j]
+        dL[dr,dr] = dL_drs
     
     #return dL_arr
 
