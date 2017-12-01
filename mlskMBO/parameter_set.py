@@ -22,9 +22,12 @@ class ParameterSet(object):
         self._parameters = OrderedDict()
         
     def __setitem__(self, key, parameter):
-        assert parameter.key == key, "parameter key must match"
+        if parameter.key is None:
+            parameter.key = key
+        assert parameter.key == key, "parameter key must match ParameterSet key"
         #self._parameters[key] = parameter
-        self.add(parameter)
+        assert isinstance(parameter, Parameter), "Please provide a Parameter object"
+        self._parameters[parameter.key] = parameter
         
     def __getitem__(self, key):
         return self._parameters[key]
@@ -34,7 +37,7 @@ class ParameterSet(object):
     
     def add(self, parameter):
         assert isinstance(parameter, Parameter), "Please provide a Parameter object"
-        self._parameters[parameter.key] = parameter
+        self[parameter.key] = parameter
         
     def draw(self):
         point = {}
@@ -57,7 +60,8 @@ class ParameterSet(object):
         focussed = ParameterSet()
         for parameter, value in point.items():
             if parameter in self._parameters.keys():
-                focussed.add(self._parameters[parameter].focus(value))
+                #focussed.add(self._parameters[parameter].focus(value))
+                focussed[parameter] = self[parameter].focus(value)
             # it's probably OK if there are unknown parameters in point
             # TODO: ...but if not, this is the place to deal with it
         for key in self._parameters.keys():
@@ -68,6 +72,9 @@ class ParameterSet(object):
     def __str__(self):
         return "\n".join(str(param_obj) for param_obj in self._parameters.values())
 
+    def encode_dummies(self, vector):
+        assert False, "Placeholder, will this be needed? What inputs?"
+    
     def decode_dummies(self, dummies):
         """Dictionary has names of the form 'key|categoryvalue' 
         
@@ -87,7 +94,7 @@ class ParameterSet(object):
 # Abstract class providing behavior modelled on mlrMBO, ... especially focus
 # =============================================================================
 class Parameter(object):
-    def __init__(self, key):
+    def __init__(self, key=None):
         self.key = key
         #assert False, "Abstract superclass, instantiate Discrete or Int or Float..."
         
@@ -123,10 +130,6 @@ class Parameter(object):
     def validate(self, value):
         """Override in subclass to provide a valid value"""
         return value
-
-# =============================================================================
-# TODO: add validate() method
-# =============================================================================
                 
 class FixedParameter(Parameter):
     def __init__(self, key, value):
@@ -144,9 +147,13 @@ class FixedParameter(Parameter):
     
     def __str__(self):
         return "FixedParameter[{}], {}".format(self.key, self.value)
+
+    def validate(self, value):
+        """Fixed paramter always has the same value"""
+        return self.value
                 
 class DiscreteParameter(Parameter):
-    def __init__(self, key, values, prefix_sep="|"):
+    def __init__(self, values, key=None, prefix_sep="|"):
         """Enumerates a list of values
         key:            parameter name
         prefix_sep:     keys which contain prefix_sep are presumed to have
@@ -158,13 +165,13 @@ class DiscreteParameter(Parameter):
         super(DiscreteParameter, self).__init__(key)
         self.values = values
         self.prefix_sep = prefix_sep
-        names = OrderedDict()
-        # n.b. names uses the string representation of each value in the key
-        # anticipate the names which will be created by get_dummies()
-        # to be used by decode_dummies()
-        for val in self.values:
-            names["{}{}{}".format(key, prefix_sep, val)] = val
-        self._names = names
+#        names = OrderedDict()
+#        # n.b. names uses the string representation of each value in the key
+#        # anticipate the names which will be created by get_dummies()
+#        # to be used by decode_dummies()
+#        for val in self.values:
+#            names["{}{}{}".format(key, prefix_sep, val)] = val
+        self._names = None
         
     def draw(self):
         """select values with uniform probability..."""
@@ -180,14 +187,28 @@ class DiscreteParameter(Parameter):
             values.pop(random.randrange(len(values)))
         # put back the focus value -- note it moves to end of list
         values.append(value)
-        return DiscreteParameter(self.key, values)
+        return DiscreteParameter(values, key=self.key)
     
     def __str__(self):
         return "DiscreteParameter[{}], {}".format(self.key, self.values)
     
     # TODO: make this into __getitem__ ???
     def get_categoryvalue(self, name):
-        return self._names.get(name, "")
+        return self[name]   # self._names.get(name, "")
+    
+    def _set_names(self):
+        names = OrderedDict()
+        # n.b. names uses the string representation of each value in the key
+        # anticipate the names which will be created by get_dummies()
+        # to be used by decode_dummies()
+        for val in self.values:
+            names["{}{}{}".format(self.key, self.prefix_sep, val)] = val
+        self._names = names
+
+    def __getitem__(self, name):
+        if self._names is None:
+            self._set_names()
+        return self._names.get(name, "")        
     
     # probably not used anytime soon
     def get_dummies_as_list(self, value):
@@ -240,7 +261,7 @@ class DiscreteParameter(Parameter):
             max_item = max(values.items(), key=lambda item: item[1])
             #print("Parameter[{}] | values[{}] = {}".format(self.key, max_item[0], max_item[1]))
             #print("---------[{}] | category value = {}".format(self.key, self.get_categoryvalue(max_item[0])))
-            return {self.key : self.get_categoryvalue(max_item[0])}
+            return {self.key : self[max_item[0]]}
         else:
             #return {}
             #print("returning [ {}:{} ]".format(self.key, dummies.get(self.key)))
@@ -303,14 +324,14 @@ class DiscreteParameter(Parameter):
 #         return {self.key : max_item[0]}
 # =============================================================================
 class NumericListParameter(DiscreteParameter):
-    def __init__(self, key, values, prefix_sep="|", validation_type=int):
+    def __init__(self, values, key=None, prefix_sep="|", validation_type=int):
         """Additional validation when using lists of numeric values
         
         Selects nearest value during validation, enforces type
         validation_type:    callable, int or float
         """
         valid_values = [validation_type(val) for val in values]
-        super(NumericListParameter, self).__init__(key, valid_values, prefix_sep)
+        super(NumericListParameter, self).__init__(valid_values, key, prefix_sep)
         self.validation_type = validation_type
 
     def validate(self, value):
@@ -326,9 +347,9 @@ class NumericListParameter(DiscreteParameter):
     
 
 class NumericParameter(Parameter):
-    def __init__(self, key, lower, upper):
+    def __init__(self, lower, upper, key=None):
         assert lower <= upper, "lower cannot exceed upper"
-        super(NumericParameter, self).__init__(key)
+        super(NumericParameter, self).__init__(key=key)
         self.lower = lower
         self.upper = upper
         self.range = upper - lower
@@ -346,11 +367,15 @@ class NumericParameter(Parameter):
         
     def focus(self, value):
         #assert self.lower <= value <= self.upper, "value is out of bounds"
+        #print("- Numeric Parameter: focus value = {}, lower = {}, upper = {}".format(value, self.lower, self.upper))
         value = self.validate(value)
-        newrange = self.range / 4.0
-        upper = min(self.upper, value + newrange)
-        lower = max(self.lower, value - newrange)
-        return NumericParameter(self.key, lower, upper)
+        newrange = abs(self.range) / 4.0
+        upper = self.validate(value + newrange)
+        lower = self.validate(value - newrange)
+        #upper = min(self.upper, value + newrange)
+        #lower = max(self.lower, value - newrange)
+        #print("+ Numeric Parameter: focus value = {}, lower = {}, upper = {}".format(value, lower, upper))
+        return NumericParameter(lower, upper, key=self.key)
 
     def __str__(self):
         return "NumericParameter[{}], {}, {}".format(self.key, self.lower, self.upper)
@@ -367,7 +392,7 @@ class NumericParameter(Parameter):
             return {self.key : ret_val}
     
 class IntegerParameter(Parameter):
-    def __init__(self, key, lower, upper):
+    def __init__(self, lower, upper, key=None):
         assert lower <= upper, "lower cannot exceed upper"
         super(IntegerParameter, self).__init__(key)
         self.lower = int(lower)
@@ -391,7 +416,7 @@ class IntegerParameter(Parameter):
         newrange = self.range / 4.0
         upper = min(self.upper, ceil(value + newrange))
         lower = max(self.lower, floor(value - newrange))
-        return IntegerParameter(self.key, lower, upper)
+        return IntegerParameter(lower, upper, key=self.key)
         
     def __str__(self):
         return "IntegerParameter[{}], {}, {}".format(self.key, self.lower, self.upper)

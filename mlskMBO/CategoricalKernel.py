@@ -37,13 +37,16 @@ def _check_category_scale(X, scale):
     return scale
 
 class Projection(Kernel):
-    def __init__(self, kernel, columns, name=""):
+    def __init__(self, columns, name="proj", kernel=None):
         """
         
-        kernel:     Kernel object, e.g. RBF()
+        kernel:     Kernel object, defaults to RBF()
         name:       string to be used in reporting parameters
         columns:    integer or list of integer indices of columns to project onto
         """
+        
+        if kernel is None:
+            kernel = RBF([1.0] * len(columns))
         assert isinstance(kernel, Kernel), "Kernel instance required"
         self.kernel = kernel
         self.name = name
@@ -97,7 +100,8 @@ class Projection(Kernel):
         if deep:
             deep_items = self.kernel.get_params().items()
             #params.update((name_ + k, val) for k, val in deep_items)
-            params.update(("kernel__{}".format(k), val) for k, val in deep_items)
+            #params.update(("kernel__{}".format(k), val) for k, val in deep_items)
+            params.update(("{}__{}".format(self.name, k), val) for k, val in deep_items)
         return params
 
     @property
@@ -187,7 +191,39 @@ class Projection(Kernel):
         """Returns whether the kernel is stationary. """
         return self.kernel.is_stationary()
 
-    
+# =============================================================================
+# TODO: This is now obsolete by making RBF the default kernel of projecion
+# =============================================================================
+class Factor(Projection):
+    def __init__(self, columns, name):
+        super(Factor, self).__init__(RBF([1.0] * len(columns)),
+                                     columns,
+                                     name)
+
+    def get_params(self, deep=True):
+        """Get parameters of this kernel.
+
+        Parameters
+        ----------
+        deep: boolean, optional
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+
+        Returns
+        -------
+        params : mapping of string to any
+            Parameter names mapped to their values.
+        """
+        params = dict(columns=self.columns, name=self.name)
+        #params = dict(columns=self.columns)
+        #name_ = "{}{}__".format(self.name, self.columns)
+        if deep:
+            deep_items = self.kernel.get_params().items()
+            #params.update((name_ + k, val) for k, val in deep_items)
+            #params.update(("kernel__{}".format(k), val) for k, val in deep_items)
+            params.update(("{}__{}".format(self.name, k), val) for k, val in deep_items)
+        return params
+
 class DefunctExchangeableKernel(Kernel):
     # crude implementation, mixes ideas from Projection and Product kernels
     def __init__(self, n1, r):
@@ -363,7 +399,7 @@ class DefunctExchangeableKernel(Kernel):
 # F = (f_0, f_1, ... f_dim-1)
 # Use with Projection to extract the columns
 # =============================================================================
-class FactorKernel(NormalizedKernelMixin, Kernel):
+class  UnrestrictiveCorrelation(NormalizedKernelMixin, Kernel):
     def __init__(self, dim, zeta=[], zeta_bounds=(0.0, pi)): # add 2*pi in hopes of eliminating difficulties with log transform
         # TODO: fix this so zeta can be a list or array
         self.dim = dim
@@ -536,16 +572,22 @@ class ExchangeableCorrelation(Kernel):
                                n_elements=1,
                                log=False)
 
-    def initialize_multiplicative_correlation(self):
-        """Calculates the values used to initialize MultiplicativeCorrelation"""
+    def initialize_multiplicative_correlation(self, epsilon=0.00001):
+        """Calculates the values used to initialize MultiplicativeCorrelation
+        
+        Use epsilon to bound values away from 0 and 1, guaranteeing 
+        multiplicative correlation will have valid values."""
+        
         c = self.zeta
-        c = c if c < 0.99999 else 0.99999
-        c = c if c > 0.00001 else 0.00001
+        
+        c = c if c > epsilon else epsilon
+        c = c if c < 1.0 - epsilon else 1.0 - epsilon
         
         theta = -log(c) / 2.0 
         
         mc = np.empty(self.dim)
         mc.fill(theta)
+        
         return mc
     
 # =============================================================================
@@ -636,7 +678,7 @@ class MultiplicativeCorrelation(NormalizedKernelMixin, Kernel):
                                log=False)
 
     def initialize_unrestrictive_correlation(self):
-        """Calculate parameters to initialize UnrestrictedCorrelation kernel"""
+        """Calculate parameters to initialize UnrestrictiveCorrelation kernel"""
         # assume all entries are positive, will be true if produced by MC model
 
         t = np.array(self.zeta, dtype=np.float64)
@@ -704,7 +746,13 @@ class DirectSum(CompoundKernel):
     def diag(self, X):
         return reduce(lambda d0, d1 : d0 + d1, (k.diag(X) for k in self.kernels))
 
-
+# =============================================================================
+# TODO: there should be no difference between putting a single RBF kernel
+# with individual length scales on the set of dummy-coded variables for a factor,
+# and the product of individual RBF kernels as done here.
+# So why not use the simpler implementation?
+#     kernel = ck.Projection(RBF([1.0]*n_continuous, (0.001, 1000.0)), continuous_columns, name="continuous")
+# =============================================================================
 class SimpleFactorKernel(Tensor):
     """Alternative implementation of SimpleCategoricalKernel
     
@@ -724,7 +772,6 @@ class SimpleFactorKernel(Tensor):
 #        self.column = [column] if isinstance(column, int) else column
 #        assert all(isinstance(i, int) for i in self.column), "must be integers"
         self.columns = columns        
-        
 
         kernels = [Projection(RBF(), [c]) for c in columns]
                                     #factor_name(c)) for c in columns]
@@ -922,7 +969,7 @@ if __name__ == "__main__":
     ltz = HyperSphere(5) #, [0.0]*10)
     print("5-parameter, lower triangular\n", ltz._lower_triangular())
     
-    ltk = FactorKernel(3, [0.5,0.5,0.5])
+    ltk =  UnrestrictiveCorrelation(3, [0.5,0.5,0.5])
     print("Factor Kernel\n", ltk)
     print("Factor Kernel\n", ltk(X[:,[0,1,2]]))
 
@@ -931,7 +978,7 @@ if __name__ == "__main__":
     e = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]]
     D = np.array([e[c] for c in C]).reshape(-1,4)
     #print(C5.shape)
-    ltk4 = FactorKernel(4, zeta=[2*pi+pi/6]*6)
+    ltk4 =  UnrestrictiveCorrelation(4, zeta=[2*pi+pi/6]*6)
     print("Factor Kernel {} dimensions".format(ltk4.dim))
     print(ltk4)
     print(ltk4.theta)

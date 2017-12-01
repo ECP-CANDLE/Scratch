@@ -152,14 +152,14 @@ class HyperSphere_pure(HyperSphere):
     interval (0, pi).
     """
     def __init__(self, dim, zeta=[]):
-        m = dim*(dim-1)//2
+        m = dim * (dim - 1) // 2
         self.dim = dim
         if isinstance(zeta, (list, tuple)) and len(zeta):
             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
         elif isinstance(zeta, (int, float, np.float64, np.int64)):
             zeta = [zeta]
         else:
-            zeta = [pi/4.0]*m
+            zeta = [pi / 4.0] * m
         zeta_lt = np.zeros((dim, dim), dtype=np.float64)
         # lower triangular indices, offset -1 to get below-diagonal elements
         zeta_lt[np.tril_indices(dim, -1)] = np.array(zeta, dtype=np.float64)
@@ -403,6 +403,20 @@ if __name__ == "__main__":
     sns.lmplot(x='parameters', y='ratio', data=df_corr_ratio, order=4)
     sns.lmplot(x='parameters', y='ratio', data=df_grad_ratio, order=4)
     
+    if False:
+        L = hc._lower_triangular()
+        dllt = np.stack(hc._lower_triangular_derivative()).dot(L.T)
+        ldlt = np.transpose(dllt, [0,2,1])
+        g = dllt + ldlt
+        g = np.moveaxis(g, 0, 2)
+        hcg = np.dstack(hc.gradient)
+        diff = g - hcg
+        print(diff.max(), diff.min())
+        print(g[:,:,0])
+        print(hcg[:,:,0])
+        print(g[:,:,-1])
+        print(hcg[:,:,-1])
+        
 # =============================================================================
 #     df_corr_compare = df_corr.pivot(index='dimension', columns='code')
 #     df_corr_compare['ratio'] = df_corr_compare[('time','Python')] / df_corr_compare[('time','Cython')]

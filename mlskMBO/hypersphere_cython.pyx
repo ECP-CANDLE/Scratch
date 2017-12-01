@@ -8,8 +8,8 @@ Created on Wed Oct 25 08:54:59 2017
 import numpy as np
 
 import cython
-from cython.parallel cimport prange
-cimport openmp
+#from cython.parallel cimport prange
+#cimport openmp
 
 cimport numpy as np
 from libc.math cimport sin, cos, pi
@@ -20,7 +20,8 @@ ctypedef np.float64_t FLOAT64_t
 
 
 @cython.boundscheck(False)
-@cython.initializedcheck(False)  # turn off negative index wrapping for entire function
+@cython.initializedcheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping
 def initialize_trig_values(int dim,
                            np.ndarray zeta,
                            np.ndarray cos_zeta,
@@ -33,14 +34,15 @@ def initialize_trig_values(int dim,
     cdef int i, j
     
     with nogil:
-        for i in prange(dim):
-            for j in prange(i):
+        for i in range(dim):
+            for j in range(i):
                 C[i,j] = cos(z[i,j])
                 S[i,j] = sin(z[i,j])
             
 
 @cython.boundscheck(False)
-@cython.initializedcheck(False)  # wraparound: turn off negative index wrapping for entire function
+@cython.initializedcheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping
 def HyperSphere_lower_triangular(np.ndarray L_arr,
                                  int dim,
                                  np.ndarray cos_zeta,
@@ -57,14 +59,14 @@ def HyperSphere_lower_triangular(np.ndarray L_arr,
     
     with nogil:
         L[0,0] = 1.0
-        for r in prange(dim):
+        for r in range(dim):
             L_rs = 1.0
-            for j in prange(r):
+            for j in range(r):
                 L_rs *= S[r,j]
             L[r,r] = L_rs
-            for s in prange(r):
+            for s in range(r):
                 L_rs = C[r,s]
-                for j in prange(s):
+                for j in range(s):
                     L_rs *= S[r,j]
                 L[r,s] = L_rs
     #return L_arr
@@ -77,7 +79,8 @@ def HyperSphere_lower_triangular(np.ndarray L_arr,
 # Check theta-setter to be sure
 # =============================================================================
 @cython.boundscheck(False)
-@cython.initializedcheck(False)  # turn off negative index wrapping for entire function
+@cython.initializedcheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping
 def HyperSphere_lower_triangular_derivative(np.ndarray dL_arr,
                                             int dim,
                                             int dr,
@@ -93,15 +96,15 @@ def HyperSphere_lower_triangular_derivative(np.ndarray dL_arr,
     cdef int r, s, j
     
     with nogil:
-        for s in prange(dr):
+        for s in range(dr):
             if ds <= s:
                 dL_drs = C[dr,s] if s != ds else -S[dr,s]
-                for j in prange(s):
+                for j in range(s):
                     dL_drs *= S[dr,j] if j != ds else C[dr,j]
                 dL[dr,s] = dL_drs
         # now set the diagonal, i.e. s = dr
         dL_drs = 1.0 
-        for j in prange(dr):
+        for j in range(dr):
             dL_drs *= S[dr,j] if j != ds else C[dr,j]
         dL[dr,dr] = dL_drs
     
