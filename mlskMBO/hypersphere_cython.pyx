@@ -110,6 +110,35 @@ def HyperSphere_lower_triangular_derivative(np.ndarray dL_arr,
     
     #return dL_arr
 
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping
+def HyperSphere_lower_triangular_derivative_row(np.ndarray dL_arr,
+                                                int dim,
+                                                int dr,
+                                                int ds,
+                                                np.ndarray cos_zeta,
+                                                np.ndarray sin_zeta):                                            
+    # Memoryviews of the numpy arrays
+    cdef FLOAT64_t [:] dL_dr = dL_arr
+    cdef FLOAT64_t [:, :] C = cos_zeta
+    cdef FLOAT64_t [:, :] S = sin_zeta
+    
+    cdef FLOAT64_t dL_drs
+    cdef int r, s, j
+    
+    with nogil:
+        for s in range(dr):
+            if ds <= s:
+                dL_drs = C[dr,s] if s != ds else -S[dr,s]
+                for j in range(s):
+                    dL_drs *= S[dr,j] if j != ds else C[dr,j]
+                dL_dr[s] = dL_drs
+        # now set the diagonal, i.e. s = dr
+        dL_drs = 1.0 
+        for j in range(dr):
+            dL_drs *= S[dr,j] if j != ds else C[dr,j]
+        dL_dr[dr] = dL_drs
 
 
 

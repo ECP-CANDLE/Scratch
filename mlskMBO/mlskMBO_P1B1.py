@@ -484,7 +484,7 @@ class GPR_Model(object):
     def predict_penalized(self, gpr, gamma=1.0, delta=1.0):
         def factor_penalty(X, columns):
             W = X[columns]
-            return -gamma*(np.linalg.norm(W, ord=2))**2 + delta*(np.linalg.norm(W, ord=1) - 1)**2
+            return gamma*(np.linalg.norm(W, ord=2) - 1.0)**2 + delta*(np.linalg.norm(W, ord=1) - 1)**2
         
         return lambda X : gpr.predict(X) + sum(factor_penalty(X, columns) for columns in self.factor_columns.values())
         
@@ -548,7 +548,7 @@ class GPR_Model(object):
             gpr = self.gpr_ec
         if Xd is None:
             Xd = self.Xd
-        preds =gpr.predict(Xd, return_std=True)
+        preds = gpr.predict(Xd, return_std=True)
         preds = pd.DataFrame({"prediction" : preds[0], "std_dev" : preds[1]})
         # n.b. lambda is a keyword so change vector of values to alpha
         alpha = ParameterSampler({ "alpha" : expon()}, n_iter=n_sample)
@@ -634,15 +634,23 @@ def name_report(gpr, factors):
     return "\n".join(report)
 
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
+    """ChainMap in Python 3 would be a good replacement"""
     run_params = default_params.copy()
     run_params.update(params)
     run_params['save'] = 'save/{}'.format(output_subdirectory)
     #run_params['solr_root'] = "http://localhost:8983/solr"
     run_params['run_id'] = "run.{}.json".format(run_id)
-    # TODO: find a better workaround
+    # TODO: find a better workaround [FIXED in ParameterSet now ?]
     # batch_size is a DiscreteParameter but not dummy-coded
     # does not know to validate as integer
-    run_params['batch_size'] = int(run_params.get('batch_size', 16))
+    #run_params['batch_size'] = int(run_params.get('batch_size', 16))
+    # TODO: should these be in default_params?
+    run_params['alpha_dropout'] = run_params.get('alpha_dropout', 0)
+    run_params['use_landmark_genes'] = run_params.get('use_landmark_genes', True)
+    run_params['logfile'] = 'placeholder.log' #run_params.get('logfile', False)
+    run_params['verbose'] = False
+    run_params['shuffle'] = run_params.get('shuffle', True)
+    run_params['datatype'] = 'f32' # DEFAULT_DATATYPE
     return run_params
 
 def focus_search(params,
@@ -772,16 +780,33 @@ if __name__ == "__main__":
     opt_rec = gpr_model.optimize_recommend(ps)
     
     default_params = p1b1.read_config_file("p1b1_default_model.txt")
-    
+    # .run calls .keras_default_config
+    #keras_defaults = p1_common.keras_default_config()    
     # because we are interested in vae results
     if restrict_model in ('ae', 'vae'):
         default_params.update({ 'model' : restrict_model })
     
     # randomize draws in the vicinity of LCB points, since the original
     # points have already been evaluated
+    
+    # send opt and lcb recommendations to different subdirectories
+    # to facilitate strategy comparison
+
     run_params = []
+    # len(run_parsms) is used to generate unique ids of the form run.0.json
+    for param_dict in opt_rec:
+        run_params.append(param_update(param_dict, default_params,
+                                       len(run_params), "opt"))
+        
+    # note focus_search calls param_update
     for param_dict in lcb_rec:
-        run_params = focus_search(param_dict, default_params, "", run_params,
+        run_params = focus_search(param_dict, default_params, "lcb", run_params,
                                   n_recommend=1, degree=5)
     for params in run_params[:5]:
         print(params)
+
+    import json
+    with open("p1b1_recommend.json", "w") as jsonfile:
+        json.dump(params, jsonfile)
+    
+    

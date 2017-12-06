@@ -99,12 +99,13 @@ class HyperSphere(object):
         sin_zeta = self.sin_zeta
         
         dLstack = []
-        for dr, ds in zip(*np.tril_indices(dim, -1)):
-            dL = np.zeros((dim, dim), dtype=np.float64)
-            
-            hs.HyperSphere_lower_triangular_derivative(dL, dim, dr, ds,
-                                                       cos_zeta, sin_zeta)
-            dLstack.append(dL)
+        for dr in range(1, dim):
+            for ds in range(dr):  
+                dL = np.zeros((dim, dim), dtype=np.float64)
+                    
+                hs.HyperSphere_lower_triangular_derivative(dL, dim, dr, ds,
+                                                           cos_zeta, sin_zeta)
+                dLstack.append(dL)
         return dLstack
     
     @property
@@ -143,6 +144,43 @@ class HyperSphere(object):
                 prod *= S[r,s]
             print("check: {} = {} : difference {}".format(L[r,r], prod, L[r,r] - prod))
         return np.arccos(C[np.tril_indices(dim, -1)])
+    
+class HyperSphere_full_gradient_pure(HyperSphere):
+    def _lower_triangular_derivative_row(self, dr, ds):
+        """For given dr, all non-zero elements are in the same row"""
+        dim = self.dim
+        #zeta = self.zeta
+        cos_zeta = self.cos_zeta
+        sin_zeta = self.sin_zeta
+        
+        dL_dr = np.zeros(dim, dtype=np.float64)
+            
+        hs.HyperSphere_lower_triangular_derivative_row(dL_dr, dim, dr, ds,
+                                                       cos_zeta, sin_zeta)
+        return dL_dr    
+    
+    def full_gradient(self, X):
+        dim = self.dim
+        gradstack = []
+        L = self._lower_triangular()
+        # these for loops will use prange in OpenMP
+        for dr in range(1, dim):
+            for ds in range(dr):
+                dL = self._lower_triangular_derivative_row(dr, ds)
+                dLLt = dL.dot(L.T)
+                dLLtXt = dLLt.dot(X.T)
+                #grad = np.zeros((dim, dim), dtype=np.float64)
+                #grad = np.outer(X[:, dr], dLLtXt)
+                #grad = grad + grad.T
+                # or:
+                grad = np.zeros((dim, dim), dtype=np.float64)
+                grad[dr] = dLLtXt
+                grad[:,dr] = dLLtXt
+                print(grad)
+                gradstack.append(grad)
+        return gradstack
+            
+            
 # =============================================================================
 # Pure Python implememntation, compare to Cython version for testing
 # =============================================================================
