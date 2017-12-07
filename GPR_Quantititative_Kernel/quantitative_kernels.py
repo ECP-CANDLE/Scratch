@@ -11,18 +11,21 @@ from hypersphere import HyperSphere
 #import hypersphere_cython as hs
 
 from math import pi, sin, cos, log, sqrt
-import logging
 import numpy as np
 import pandas as pd
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Kernel
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel, CompoundKernel
-from sklearn.gaussian_process.kernels import Hyperparameter
-from sklearn.gaussian_process.kernels import NormalizedKernelMixin
+#from sklearn.gaussian_process.kernels import Kernel
+#from sklearn.gaussian_process.kernels import RBF, ConstantKernel, CompoundKernel
+#from sklearn.gaussian_process.kernels import Hyperparameter
+#from sklearn.gaussian_process.kernels import NormalizedKernelMixin
+from kernels import Kernel
+from kernels import RBF, ConstantKernel, CompoundKernel
+from kernels import Hyperparameter
+from kernels import NormalizedKernelMixin
 from sklearn.preprocessing import StandardScaler
 from scipy.linalg import cholesky
 
-
+import logging
 logging.basicConfig(filename='CategoricalKernel.log',level=logging.DEBUG)
 
 
