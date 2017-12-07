@@ -19,6 +19,9 @@ optimization.
 # Note: this module is strongly inspired by the kernel module of the george
 #       package.
 
+# NOTE: added 'log' parameter to Hyperparameter, 
+#       conditionally omit log transformation
+
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 import math
@@ -27,9 +30,17 @@ import numpy as np
 from scipy.special import kv, gamma
 from scipy.spatial.distance import pdist, cdist, squareform
 
-from ..metrics.pairwise import pairwise_kernels
-from ..externals import six
-from ..base import clone
+# =============================================================================
+# Can't use relative import in non-package
+# =============================================================================
+# =============================================================================
+# from ..metrics.pairwise import pairwise_kernels
+# from ..externals import six
+# from ..base import clone
+# =============================================================================
+from sklearn.metrics.pairwise import pairwise_kernels
+from sklearn.externals import six
+from sklearn.base import clone
 from sklearn.externals.funcsigs import signature
 
 
