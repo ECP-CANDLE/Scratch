@@ -155,12 +155,12 @@ batch_size = [16, 32, 64, 128, 256, 512, 1024]
 #         "978 978 978 978 978",
 #         "978 978 978 978 978 978"]
 dense = [
- '[1800, 600]',
- '[978, 978, 978, 978, 978, 978]',
- '[978, 978, 978, 978, 978]',
- '[978, 978, 978, 978]',
- '[978, 978, 978]',
- '[978, 978]']
+ [1800, 600],
+ [978, 978, 978, 978, 978, 978],
+ [978, 978, 978, 978, 978],
+ [978, 978, 978, 978],
+ [978, 978, 978],
+ [978, 978]]
 latent_dim = [2, 8, 32, 128, 512]
 model = ["ae", "vae"]
 residual = [0, 1]
@@ -264,7 +264,13 @@ def p1b1_parameter_set():
 
 
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
-    """ChainMap in Python 3 would be a good replacement"""
+    """Last-minute ammendations to the parameters.  
+    
+    Many parameters arguably belong in, but are missing from 
+    p1b1_default_model.txt: 
+        alpha_dropout, logfile, verbose, shuffle, datatype, cp, tb, tsne
+
+    ChainMap in Python 3 would be a good replacement"""
     run_params = default_params.copy()
     run_params.update(params)
     run_params['save'] = 'save/{}'.format(output_subdirectory)
@@ -275,12 +281,18 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     # does not know to validate as integer
     #run_params['batch_size'] = int(run_params.get('batch_size', 16))
     # TODO: should these be in default_params?
+    # If they are supplied in either params or default_params, those values
+    # will take precedence over the values below
     run_params['alpha_dropout'] = run_params.get('alpha_dropout', 0)
     run_params['use_landmark_genes'] = run_params.get('use_landmark_genes', True)
-    run_params['logfile'] = 'placeholder.log' #run_params.get('logfile', False)
-    run_params['verbose'] = False
+    run_params['logfile'] = run_params.get('logfile', 'placeholder.log')
+    run_params['verbose'] = run_params.get('verbose', False)
     run_params['shuffle'] = run_params.get('shuffle', True)
-    run_params['datatype'] = 'f32' # DEFAULT_DATATYPE
+    run_params['datatype'] = run_params.get('datatype', np.float32) #'f32' # DEFAULT_DATATYPE
+    run_params['cp'] = run_params.get('cp', True)
+    run_params['tb'] = run_params.get('tb', False)
+    run_params['tsne'] = run_params.get('tsne', False)
+    
     return run_params
 
 def focus_search(params,
@@ -364,7 +376,6 @@ if __name__ == "__main__":
              'optimizer',
              'warmup_lr',
              'activation',
-             'residual',
              'dense',
              'latent_dim',
              'reduce_lr',
@@ -406,15 +417,21 @@ if __name__ == "__main__":
     print(gpr_model.name_report(gpr_model.gpr_uc))
     
   
-    lcb_rec = gpr_model.LCB_recommend(10, ps)
-    opt_rec = gpr_model.optimize_recommend(ps)
+    lcb_rec = gpr_model.LCB_recommend(3, ps)
+    opt_rec, x_rec = gpr_model.optimize_recommend(3, ps, return_data=True)
+    
+    # TODO: optimize_recommend finds all local minima; all points returned
+    # could have converged to the same point, and be very close to each other.
+    # Need to screen recommendations using clustering or similar
+    # to eliminate duplicates and near-duplicates.
     
     default_params = p1b1.read_config_file("p1b1_default_model.txt")
-    # .run calls .keras_default_config
-    #keras_defaults = p1_common.keras_default_config()    
-    # because we are interested in vae results
+
     if restrict_model in ('ae', 'vae'):
         default_params.update({ 'model' : restrict_model })
+        
+    # TODO: last-minute additions to default_params could be done here, e.g.
+    #default_params['logfile'] = 'logfile.txt'
     
     # randomize draws in the vicinity of LCB points, since the original
     # points have already been evaluated
@@ -432,11 +449,18 @@ if __name__ == "__main__":
     for param_dict in lcb_rec:
         run_params = focus_search(param_dict, default_params, "lcb", run_params,
                                   n_recommend=1, degree=5)
-    for params in run_params[:5]:
+    
+    for params in run_params[:3]:
         print(params)
 
-    import json
-    with open("p1b1_recommend.json", "w") as jsonfile:
-        json.dump(params, jsonfile)
-    
+# TODO: Fix This!
+# datatype=np.float32 gets keras to run, but can't be serialized to json
+#    # write parameter dictionaries to json file, e.g. to be sent to swift-t
+#    import json
+#    with open("p1b1_recommend.json", "w") as jsonfile:
+#        json.dump(run_params, jsonfile)
+   
+    if run_keras:
+        for params in run_params:
+            p1b1k2.run(params)
     

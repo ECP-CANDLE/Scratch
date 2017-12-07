@@ -256,8 +256,7 @@ class GPR_Model(object):
         
     def optimize(self, gamma=1.0, delta=1.0, gpr=None, Xd=None):
         """gpr should be self.gpr_uc, _mc, or _ec..."""
-        if gpr is None:
-            gpr = self.gpr_uc
+        gpr = self._get_gpr(gpr)
         if Xd is None:
             Xd = self.Xd
             
@@ -290,7 +289,7 @@ class GPR_Model(object):
         result_data = pd.DataFrame(result_data)
         return result_data
     
-    def optimize_recommend(self, param_set, gamma=1.0, delta=1.0,
+    def optimize_recommend(self, n_recommend, param_set, gamma=1.0, delta=1.0,
                            gpr=None, Xd=None,
                            return_data=False):
         """Optimizes GPR model, using each data point as initial value
@@ -299,9 +298,11 @@ class GPR_Model(object):
         however, these may all be the same if they all converge to the
         global minimum.  The results are decoded into parameter sets."""
         x = self.optimize(gamma=gamma, delta=delta, gpr=gpr, Xd=Xd)
-        paramdictlist = self.decode_dummies(x, param_set)
+        x.sort_values(by='gpr_optimum', inplace=True)
+        x_rec = x.iloc[:n_recommend]
+        paramdictlist = self.decode_dummies(x_rec, param_set)
         if return_data:
-            return paramdictlist, x
+            return paramdictlist, x_rec
         else:
             return paramdictlist
 
