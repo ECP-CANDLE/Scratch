@@ -9,12 +9,12 @@ Created on Wed Oct 18 14:36:59 2017
 
 
 # =============================================================================
-# Assumes GPR_Quantitative_Kernel is located in Scratch/GPR_Quantitative_Kernel
+# Assumes GPR_Qualitative_Kernel is located in Scratch/GPR_Qualitative_Kernel
 # at the same level as Benchmarks:
 #
 # GitHub
 #    Scratch
-#        GPR_Quantitative_Kernel
+#        GPR_Qualitative_Kernel
 #    Benchmarks
 #        common
 #        Pilot1

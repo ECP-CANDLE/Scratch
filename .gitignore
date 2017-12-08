@@ -5,7 +5,7 @@ run*.json
 *.pyc
 .spyproject/codestyle.ini
 *.ini
-
+GPR_Quantitative_Kernel
 =======
 *.pyc
 .spyproject/codestyle.ini
