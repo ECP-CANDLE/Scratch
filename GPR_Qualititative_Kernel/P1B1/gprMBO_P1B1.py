@@ -276,7 +276,9 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     
     return run_params
 
-
+# =============================================================================
+# Python implementation of Focus algorithm from mlrMBO
+# =============================================================================
 def focus_search(params,
                  default_params,
                  output_subdirectory,
