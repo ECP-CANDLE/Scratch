@@ -75,4 +75,4 @@ An earlier test run was even more successful:
 |Optimization	|0.013135291449725629|
 |Lower Confidence Bound	|0.190620556473732|
 |Lower Confidence Bound	|0.014625415603319803|
-|Lower Confidence Bound	|007932033731291692|
+|Lower Confidence Bound	|0.007932033731291692|
