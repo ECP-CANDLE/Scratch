@@ -1,5 +1,5 @@
-###Qualitative Kernels for use with
-###scikit-learn Gaussian Process Regressor
+### Qualitative Kernels for use with
+### scikit-learn Gaussian Process Regressor
 
 Reference:
 
@@ -10,7 +10,7 @@ Qiang Zhou, Peter Z. G. Qian & Shiyu Zhou
 
 Technometrics Vol. 53 , Iss. 3,2011
 
-http://amstat.tandfonline.com/doi/full/10.1198/TECH.2011.10025
+<http://amstat.tandfonline.com/doi/full/10.1198/TECH.2011.10025>
 
 Abstract
 We propose a flexible yet computationally efficient approach for building 
