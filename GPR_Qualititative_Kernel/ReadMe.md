@@ -28,7 +28,7 @@ Gaussian Process Regressor in scikit-learn.
 Running P1B1/gprMBO_P1B1.py gives a minimal demonstration of their efficacy 
 when applied to data from P1B1.  This will fit a GPR model to cached data,
 and numerically optimize the resulting prediction function
-(adding penalties to enforce feasabilty of the solution).  
+(adding penalties to enforce feasibility of the solution).  
 
 Overall, it is patterned on mlrMBO, but removes the use of  
 Random Forest Regression as a surrogate, instead directly modeling the 

@@ -9,7 +9,7 @@ import pandas as pd
 import os
 import glob
 import json
-from collections import defaultdict, Counter
+from collections import defaultdict  #, Counter
 
    
 # pick a file with .format(run_id),  or use  .format("*") with glob 
@@ -25,17 +25,19 @@ NT3_SUBDIRECTORY = 'experiment_0'
 P3B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot3/P3B1/save"
 P3B1_SUBDIRECTORY = ''
 
-P1B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/P1B1/save"
-P1B1_SUBDIRECTORY = ""
+#P1B1_OUTPUT_DIR = "/Users/johnbauer/Benchmarks/Pilot1/P1B1/save"
+P1B1_OUTPUT_DIR = "/Users/johnbauer/Documents/GitHub/Scratch/GPR_Qualititative_Kernel/P1B1/save"
+P1B1_SUBDIRECTORY = "opt"
 
 # =============================================================================
 # Create a subclass to read JSON logs from a project, such as NT3 or P1B3
 # See subclasses below for examples
-# Each subclass simply packages suitable values with which to initialize
-# the RunData object.  RunData will then configure a JSON_Log object
-# for each file in the target directory/subdirectory
-# and append the requested values into a dataframe with one row for each 
-# value of run_id
+# Each subclass packages suitable default values with which to initialize
+# the RunData object, detailing the keys expected in the parameters list
+# and JSON keys such as 'validation_loss' to be retrieved from the jSON log. 
+# RunData will then configure a JSON_Log object for each file in the 
+# target directory/subdirectory and append the requested values into a
+# dataframe with one row for each value of run_id.
 # =============================================================================
 class RunData(object):
     """Scrape data from run.###.json files"""
@@ -49,119 +51,112 @@ class RunData(object):
                  run_json_pattern,
                  json_keys,
                  param_keys,
-                 pdtypes,
-                 dummies):
+                 pdtypes):
         
+        self._output_dir = output_dir
+        self._subdirectory = subdirectory
+        self.run_json_pattern = run_json_pattern
         self.json_keys = json_keys
         self.param_keys = param_keys # parameters to send to pandas dataframe
-        self.run_file_path = os.path.join(output_dir, subdirectory, run_json_pattern)
-        self.data = defaultdict(list)
+        self._run_file_path = os.path.join(output_dir, subdirectory, run_json_pattern)
+        # data are cached until dataframe property requested
+        self._data = defaultdict(list)
         # internal use only, use dataframe property to access
         self._df = None
         self.pdtypes = pdtypes
-        self.dummies = dummies
-        self.dummy_names = defaultdict(list)
-        self.original_names = {}
-        self.new_names = {}    
-           
+ 
+    @property
+    def output_dir(self):
+        return self._output_dir
+    
+    @output_dir.setter
+    def output_dir(self, output_dir):
+        self._output_dir = output_dir
+        self._run_file_path = os.path.join(output_dir, self.subdir, self.run_json_pattern)        
+
+
+    @property
+    def subdirectory(self):
+        return self._subdirectory
+    
+    @subdirectory.setter
+    def subdirectory(self, subdir):
+        self._subdirectory = subdir
+        self._run_file_path = os.path.join(self.output_dir, subdir, self.run_json_pattern)        
+    
     def run_file(self, run_id):
         """run_id ="*" to get pattern for all, otherwise a single number"""
-        return self.run_file_path.format(run_id)
+        return self._run_file_path.format(run_id)
+        
+    def add_dict(self, run_dict):
+        """Accumulate a list of values for each parameter"""
+        for key in self.param_keys:
+            self._data[key].append(run_dict.get(key, None))
+
+    def add_json_log(self, filename):
+        json_log = JSONLog(filename, self.json_keys)
+        param_dict = json_log.parse_file()
+        self.add_dict(param_dict)
         
     # TODO: optional directory/subdirectory
     # allow calling for multiple subdirectories
-    # Workaround: use pd.concat((file1, file2, ...), axis=1)
+    # Workaround: use pd.concat((file1, file2, ...), axis=0)
     # to combine data files
-    def add_all(self):
-        for run_file in glob.iglob(self.run_file("*")):
-            self.add_file(run_file)
+    def add_run_id(self, run_id="*"):
+        for json_log in glob.iglob(self.run_file(run_id)):
+            self.add_json_log(json_log)
         
-    def add(self, run_dict):
-        """Accumulate a list of values for each parameter"""
-        for key in self.param_keys:
-            self.data[key].append(run_dict.get(key, None))
-
-    def add_file(self, filename):
-        param_dict = JSONLog(filename, self.json_keys).parse_file()
-        self.add(param_dict)
-            
     def _get_dataframe(self):
-        """utility function for lazy evaluation of data set from dict
-        
-        Creates dummy codes via Pandas get_dummies
-        """
-        msg = "Categorical variable names must not contain {}".format(RunData.PREFIX_SEP)
-        assert all(RunData.PREFIX_SEP not in dname for dname in self.dummies), msg
-        if self._df:
-            df = self._df
-        else:
-            df = pd.DataFrame.from_dict(self.data)
-            # TODO: discard data dict if unneeded
-            #self.data = None
-            # training_loss and validation_loss are already float64
+        """utility function for lazy evaluation of data set from dict buffer"""
+        # retrieve the cached dataframe, if any
+        df0 = self._df
+        #if df0 is not None: print(df0.describe())
+        # flush the buffered data read in from log files
+        if self._data:
+            df1 =  pd.DataFrame.from_dict(self._data)
             pdtypes = self.pdtypes
-            dummies = self.dummies
-            df = df.astype(pdtypes) if pdtypes else df
-            df = pd.get_dummies(df, columns=dummies, prefix_sep=RunData.PREFIX_SEP) if dummies else df
-            names = df.columns
-            dummy_names = self.dummy_names
-            rename = {}
-            original = {}
-            index = Counter()
-            for rootname in dummies:
-                for name in names:
-                    if rootname == name[:len(rootname)]:
-                        catname = name[len(rootname):]
-                        if RunData.PREFIX_SEP in catname:
-                            catname = catname.split(RunData.PREFIX_SEP)
-                            # n.b. this is impossible given the assertion
-                            # TODO: remove one or the other
-                            catname = RunData.PREFIX_SEP.join(catname[1:])
-                            dummy_names[rootname].append(catname)
-                            newname = "{}_{}".format(rootname, index[rootname])
-                            index[rootname] += 1
-                            original[newname] = name
-                            rename[name] = newname
-            self.dummy_names = dummy_names
-            self.original_names = original
-            self.new_names = rename
-            # TODO: less drastic resolution for name conflicts before rename
-            for name in rename.values():
-                assert name not in names, "Name conflict: {}".format(name)
-            # n.b. original.keys() == rename.values() and vice-versa 
-            #df.rename(columns=rename, inplace=True)
-            self._df = df
+            df1 = df1.astype(pdtypes) if pdtypes else df1
+            self._data = defaultdict(list)
+        else:
+            df1 = None
+        return self._merge_data(df0, df1)
+        
+    def _merge_data(self, df0, df1):
+        if df0 is not None and df1 is not None:
+            df =  pd.concat([df0, df1])
+        elif df0 is not None:
+            df = df0
+        elif df1 is not None:
+            df = df1
+        else:
+            df = None
+        self._df = df
         return df
 
     dataframe = property(_get_dataframe, None, None, "Lazy evaluation of dataframe")
-    
-    # it seems worth thinking about a ParameterDict class that is aware of the issues...
-    def original_names(self, param_dict):
-        """restore original parameter names
-        
-        but beware: multi-valued lists are returned for dummy coded variables
-        """
-        renamed = {}
-        #multivalued = defaultdict(list)
-        for key, values in self.dummies.items():
-            # set up list of correct length to hold indexed values
-            renamed[key] = [None] * len(values)
-        for key in param_dict:
-            tokens = key.split(RunData.PREFIX_SEP)
-            root_name = tokens[0]
-            if root_name in self.dummies:
-                index = int(tokens[1])
-                # working without a net:  not checking bounds
-                # by virtue of construction, index must be valid...
-                renamed[root_name][index] = param_dict[key]
-                # NB use self.dummy_names[root_name][index] to retrieve 
-                # original categorical *value* for this index
-                # assume dictionary will be post-processed before
-                # being handed over to nt3.run(...)
-            else:
-                renamed[key] = param_dict[key]
-        return renamed
 
+    def to_csv(self, csvfile):
+        """Cache data as .csv"""
+        df = self.dataframe
+        df.to_csv(csvfile, index=False)
+        
+    def from_csv(self, csvfile):
+        """Concatenate cached data to this object's data (if any)"""
+        # this will flush any buffered data
+        df0 = self.dataframe
+        df1 = pd.read_csv(csvfile)
+        return self._merge_data(df0, df1)
+
+    def add_dataframe(self, df):
+        """Concatenate this object's data with another DataFrame """
+        # this will flush any buffered data
+        df0 = self.dataframe
+        assert isinstance(df, pd.DataFrame), "Expecting a pandas DataFrame"
+        return self._merge_data(df0, df)        
+        
+# =============================================================================
+# TODO: finish migrating these into subdirectories
+# =============================================================================
 class NT3RunData(RunData):
     """Scrape NT3 data from run.###.json files"""
     # these are the keys present in the JSON log/solr to be retrieved, 
@@ -189,8 +184,7 @@ class NT3RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=JSON_KEYS,
                  param_keys=PARAM_KEYS,
-                 pdtypes=PARAM_DTYPES,
-                 dummies=PARAM_CATEGORICAL):
+                 pdtypes=PARAM_DTYPES):
         """output_dir/subdirectory gives the location of the json log files 
         to be parsed.  
         
@@ -201,8 +195,7 @@ class NT3RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=json_keys,
                  param_keys=param_keys,
-                 pdtypes=pdtypes,
-                 dummies=dummies)
+                 pdtypes=pdtypes)
 
 # =============================================================================
 # Setting up a new subclass
@@ -255,8 +248,7 @@ class P1B1RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=JSON_KEYS,
                  param_keys=PARAM_KEYS,
-                 pdtypes=PARAM_DTYPES,
-                 dummies=PARAM_CATEGORICAL):
+                 pdtypes=PARAM_DTYPES):
         """output_dir/subdirectory gives the location of the json log files 
         to be parsed.  
         
@@ -267,8 +259,7 @@ class P1B1RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=json_keys,
                  param_keys=param_keys,
-                 pdtypes=pdtypes,
-                 dummies=dummies)
+                 pdtypes=pdtypes)
         
 class P3B1RunData(RunData):
     """Scrape P3B1 data from run.###.json files"""
@@ -297,8 +288,7 @@ class P3B1RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=JSON_KEYS,
                  param_keys=PARAM_KEYS,
-                 pdtypes=PARAM_DTYPES,
-                 dummies=PARAM_CATEGORICAL):
+                 pdtypes=PARAM_DTYPES):
         """output_dir/subdirectory gives the location of the json log files 
         to be parsed.  
         
@@ -309,20 +299,22 @@ class P3B1RunData(RunData):
                  run_json_pattern=RUN_JSON_PATTERN,
                  json_keys=json_keys,
                  param_keys=param_keys,
-                 pdtypes=pdtypes,
-                 dummies=dummies)
+                 pdtypes=pdtypes)
         
-# TODO: figure out why parameters is not showing up in solr, but is in the log
-# for now open the file and extract json here, 
-# if parameters start to show up in solr rework this 
-# so the json.load happens outside, just pass in the json
+# =============================================================================
+#  TODO: figure out why parameters is not showing up in solr, but is in the log
+#  for now open the file and extract json here, 
+#  if parameters start to show up in solr rework this 
+#  so the json.load happens outside, just pass in the json
+# =============================================================================
 class JSONLog:
     """Utility class to mediate between JSON log file and parameter dictionary"""
     def __init__(self, run_file, keys=[], parameters="parameters"):
         """run_file: log file name, typically 'run.#.json'
            keys: to be retrieved from JSON files
            parameters: typically 'parameters', expecting a list of strings
-           which receive special treatment, each gets parsed into {key:value}"""
+           which receive special treatment, each gets parsed into 
+           {key:value} pairs and added to the dictionary"""
         try:
             with open(run_file, "r") as f:
                 run_json = json.load(f)
@@ -367,6 +359,8 @@ class JSONLog:
     # utility method 
     def _parse_parameters(self, params):
         """JSON 'parameters' holds a list of strings, each a ":"-separated pair"""
+        if params is None:
+            return self.param_dict
         for param in params:
             param = param.split(":")
             key = param[0]
@@ -385,7 +379,52 @@ class JSONLog:
     
 
 if __name__ == "__main__":
+ 
+    output_dir = P1B1_OUTPUT_DIR
+    output_subdirectory = P1B1_SUBDIRECTORY
     
+    #output_dir = os.path.join(NT3RunData.OUTPUT_DIR, output_subdirectory)
+    #output_dir = "/Users/johnbauer/Benchmarks/Pilot1/NT3"
+    #nt3_data = NT3RunData(output_dir=output_dir, subdirectory=output_subdirectory)
+    
+    p1b1_data = P1B1RunData(output_dir=output_dir, subdirectory=output_subdirectory)
+
+    p1b1_data.add_run_id()
+    data = p1b1_data.dataframe
+    #data = pd.DataFrame(nt3_data.data)
+    
+   # print(nt3_data.dummy_names)
+    #print(nt3_data.new_names)
+    #print(nt3_data.original_names)
+    
+    print(data.describe())
+    print(data.head())
+    print(data.columns)
+    print(data.dtypes)
+    
+    output_subdirectory = "lcb"
+    
+    p1b1_data.subdirectory = output_subdirectory
+    p1b1_data.add_run_id()
+    data = p1b1_data.dataframe
+
+    
+#    p1b1_data_lcb = P1B1RunData(output_dir=output_dir, subdirectory=output_subdirectory)
+#
+#    p1b1_data_lcb.add_run_id()
+#    data_lcb = p1b1_data_lcb.dataframe
+#    
+#    data = pd.concat([data, data_lcb])
+    
+    print(data.describe())
+    print(data.head())
+    print(data.columns)
+    print(data.dtypes)
+    
+# =============================================================================
+#     TODO: Alternatively, set .subdirectory, .add_run_id(), .dataframe
+# =============================================================================
+
     output_dir = NT3_OUTPUT_DIR
     output_subdirectory = NT3_SUBDIRECTORY
     
@@ -395,13 +434,13 @@ if __name__ == "__main__":
     
     nt3_data = NT3RunData(output_dir=output_dir, subdirectory=output_subdirectory)
 
-    nt3_data.add_all()
+    nt3_data.add_run_id()
     data = nt3_data.dataframe
     #data = pd.DataFrame(nt3_data.data)
     
-    print(nt3_data.dummy_names)
-    print(nt3_data.new_names)
-    print(nt3_data.original_names)
+   # print(nt3_data.dummy_names)
+    #print(nt3_data.new_names)
+    #print(nt3_data.original_names)
     
     print(data.describe())
     print(data.head())
@@ -414,13 +453,13 @@ if __name__ == "__main__":
     
     p3b1_data = P3B1RunData(output_dir=output_dir, subdirectory=output_subdirectory)
 
-    p3b1_data.add_all()
+    p3b1_data.add_run_id()
     data = p3b1_data.dataframe
     #data = pd.DataFrame(p3b1_data.data)
     
-    print(p3b1_data.dummy_names)
-    print(p3b1_data.new_names)
-    print(p3b1_data.original_names)
+    #print(p3b1_data.dummy_names)
+    #print(p3b1_data.new_names)
+    #print(p3b1_data.original_names)
     
     print(data.describe())
     print(data.head())

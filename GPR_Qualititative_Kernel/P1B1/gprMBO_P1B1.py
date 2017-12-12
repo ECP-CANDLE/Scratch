@@ -6,8 +6,6 @@ Created on Wed Oct 18 14:36:59 2017
 @author: johnbauer
 """
 
-
-
 # =============================================================================
 # Assumes GPR_Qualitative_Kernel is located in Scratch/GPR_Qualitative_Kernel
 # at the same level as Benchmarks:
@@ -45,27 +43,25 @@ for path in paths.values():
 import logging
 logging.basicConfig(filename='P1B1.log',level=logging.DEBUG)
 
-# TODO: change the name to run_data 
-# TODO: remove this unless run.x.x.x.json logs written by keras are being used
-# import nt3_run_data as nt3d
+import run_data
 import p1b1_baseline_keras2 as p1b1k2
 import p1b1
 #import run_data
 import parameter_set as prs
-import qualitative_kernels as qk
+#import qualitative_kernels as qk
 from gpr_model import GPR_Model, report
 
 
 
-from sklearn.gaussian_process import GaussianProcessRegressor
+#from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import RBF, ConstantKernel
-from kernels import RBF, ConstantKernel
-from sklearn.model_selection import ParameterGrid, ParameterSampler
+#from kernels import RBF, ConstantKernel
+from sklearn.model_selection import ParameterGrid  #, ParameterSampler
 
 import pandas as pd
 import numpy as np
-import scipy as sp
-from scipy.stats.distributions import expon
+#import scipy as sp
+#from scipy.stats.distributions import expon
 
 # data are correctly reshaped but warning is present anyway, 
 #so suppress them all (bug in sklearn.optimize reported)
@@ -304,7 +300,14 @@ if __name__ == "__main__":
     print(ps)
     
     p1b1csv = "P1B1_data.csv"
-    p1b1_data = pd.read_csv(p1b1csv)
+    
+    p1b1_run_data = run_data.P1B1RunData(output_dir, subdirectory="opt")
+    p1b1_run_data.from_csv(p1b1csv)
+    print("Testing .from_csv")
+    print(p1b1_run_data.dataframe.describe())
+    
+    #p1b1_data = pd.read_csv(p1b1csv)
+    p1b1_data = p1b1_run_data.dataframe
     valid = p1b1_data.validation_loss.notnull()
     p1b1_data = p1b1_data[valid]
     
@@ -454,4 +457,14 @@ if __name__ == "__main__":
             except Exception as e:
                 logging.error(repr(e))
                 logging.error("\nKeras run failed for parameters:\n{}".format(params))
+    
+    if run_keras:
+        data = run_data.P1B1RunData(output_dir, subdirectory="opt")
+        data.add_run_id("*")
+        print("Results from optimization")
+        print(data.dataframe.validation_loss.describe())
+        data.subdirectory = "lcb"
+        data.add_run_id("*")
+        print("Results from optimization and lower confidence bound")
+        print(data.dataframe.validation_loss.describe())        
     
