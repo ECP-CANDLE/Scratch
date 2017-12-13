@@ -253,10 +253,6 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     run_params['save'] = 'save/{}'.format(output_subdirectory)
     #run_params['solr_root'] = "http://localhost:8983/solr"
     run_params['run_id'] = run_id # "run.{}.json".format(run_id)
-    # TODO: find a better workaround [FIXED in ParameterSet now ?]
-    # batch_size is a DiscreteParameter but not dummy-coded
-    # does not know to validate as integer
-    #run_params['batch_size'] = int(run_params.get('batch_size', 16))
     # TODO: should these be in default_params?
     # If they are supplied in either params or default_params, those values
     # will take precedence over the values below
@@ -378,7 +374,7 @@ if __name__ == "__main__":
         p1b1_data = p1b1_data[p1b1_data.model == restrict_model]
         factors.remove('model')
     
-    # try a smaller problmen
+    # try a smaller problem
     #factors = ['dense', 'model', 'warmup_lr', 'reduce_lr']
     assert all(x in data_columns for x in X_columns), "invalid column"
     
