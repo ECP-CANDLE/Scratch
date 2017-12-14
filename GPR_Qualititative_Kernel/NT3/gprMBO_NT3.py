@@ -97,7 +97,8 @@ TARGET = 'validation_loss'
 N_INITIAL = 60
 
 # for demonstration purposes, limit the number of keras runs
-MAX_DEMO = 3
+# set to any number larget than N_INTIAL to use all the data
+MAX_DEMO = 1000
 
 from collections import defaultdict
 
@@ -123,7 +124,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # file_path = os.path.dirname(os.path.realpath(__file__))
 # config_file = os.path.join(file_path, 'nt3_default_model.txt')
 # output_dir = os.path.join(file_path, 'save') 
-# output_subdirectory = "exp_4" #'experiment_0' 
+# subdirectory = "exp_4" #'experiment_0' 
 # 
 # # read in global default parametere configuration
 # default_params = nt3b.read_config_file(config_file)
@@ -143,17 +144,17 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 batch_size = [16, 32, 64, 128, 256, 512]
 activation = ["softmax", "elu", "softplus", "softsign", "relu", "tanh",
               "sigmoid", "hard_sigmoid", "linear"]
-dense = [(500, 100, 50),
-         (1000, 500, 100, 50),
-         (2000, 1000, 500, 100, 50),
-         (2000, 1000, 1000, 500, 100, 50),
-         (2000, 1000, 1000, 1000, 500, 100, 50)]
+dense = [[500, 100, 50],
+         [1000, 500, 100, 50],
+         [2000, 1000, 500, 100, 50],
+         [2000, 1000, 1000, 500, 100, 50],
+         [2000, 1000, 1000, 1000, 500, 100, 50]]
 optimizer = ["adam", "sgd", "rmsprop", "adagrad", "adadelta","adamax","nadam"]
-conv = [ (50, 50, 50, 50, 50, 1),
-         (25, 25, 25, 25, 25, 1),
-         (64, 32, 16, 32, 64, 1),
-         (100, 100, 100, 100, 100, 1),
-         (32, 20, 16, 32, 10, 1)]
+conv = [[50, 50, 50, 50, 50, 1],
+        [25, 25, 25, 25, 25, 1],
+        [64, 32, 16, 32, 64, 1],
+        [100, 100, 100, 100, 100, 1],
+        [32, 20, 16, 32, 10, 1]]
 
 ps = prs.ParameterSet()
 
@@ -175,12 +176,15 @@ print(ps)
 # Ensure that all parameters are populated with default values
 # Any last-minute or ad hoc changes can be added here
 # =============================================================================
-def param_update(params, default_params, run_id, output_subdirectory='exp'):
+def param_update(params, default_params, run_id, subdirectory='exp'):
     run_params = default_params.copy()
     run_params.update(params)
-    run_params['save'] = 'save/{}'.format(output_subdirectory)
+    run_params['save'] = 'save/{}'.format(subdirectory)
     #run_params['solr_root'] = "http://localhost:8983/solr"
     run_params['run_id'] = "{}".format(run_id)
+    # TODO: find a better fix for this:
+    # seems to be expecting a list, could edit default params instead
+    ###run_params['metrics'] = ['accuracy']
     return run_params
 
 
@@ -242,14 +246,14 @@ for boundary_params in param_grid:
     # then each of the discrete parameter values
     p.update(boundary_params)
     p = param_update(p, DEFAULT_PARAMS, len(run_params),
-                     output_subdirectory='experiment')
+                     subdirectory='experiment')
     run_params.append(p)
     
 # Fill out the requested number of initial points at random
 for i in range(N_INITIAL - len(run_params)):
     p = ps.draw()
     p = param_update(p, DEFAULT_PARAMS, len(run_params),
-                     output_subdirectory='experiment')
+                     subdirectory='experiment')
     run_params.append(p)
     
 for params in run_params[:MAX_DEMO]:
@@ -261,3 +265,37 @@ for params in run_params[:MAX_DEMO]:
     if run_keras:
         # finally do some work!
         nt3b.run(params)
+       
+subdirectory="experiment"
+nt3_data = run_data.NT3RunData(output_dir, subdirectory)
+nt3_data.add_run_id("*")
+df = nt3_data.dataframe
+print(df.describe())
+
+# Add in the cached data and fit the GPR model
+
+nt3csv = "nt3_initial_data.csv"
+
+nt3_data.from_csv(nt3csv)
+df = nt3_data.dataframe
+print(df.describe())
+
+# fit the Gaussian Procww Regression model
+
+subdirectory="experiment_1"
+
+X_columns = ['drop',
+             'epochs',
+             'learning_rate']
+
+factors =['optimizer',
+          'batch_size',
+          'activation',
+          'dense',
+          'conv']
+
+gpr_model = GPR_Model(df, X_columns, TARGET, factors)
+gpr_model.fit_EC()
+gpr_model.fit_MC()
+gpr_model.fit_UC()
+# equivalent to : gpr_model.fit()

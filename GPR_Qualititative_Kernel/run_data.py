@@ -167,6 +167,7 @@ class NT3RunData(RunData):
     # or solr files; each item is a string parameter_name: parameter_value
     PARAM_KEYS = ['conv', 'dense', 'epochs', 'batch_size', 'learning_rate',
                   'drop', 'classes', 'pool', 'run_id',
+                  'activation', 'optimizer',
                   'training_loss', 'validation_loss', 'runtime_hours']
     # coerce to the correct type in the dataframe
     PARAM_DTYPES = {'batch_size' : 'int64',
