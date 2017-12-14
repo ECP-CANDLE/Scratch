@@ -264,7 +264,13 @@ for params in run_params[:MAX_DEMO]:
     print("*"*80)
     if run_keras:
         # finally do some work!
-        nt3b.run(params)
+        for params in run_params:
+            try:
+                nt3b.run(params)
+            except Exception as e:
+                logging.error(repr(e))
+                logging.error("\nKeras run failed for parameters:\n{}".format(params))
+                print("\nKeras run failed for parameters:\n{}".format(params))
        
 subdirectory="experiment"
 nt3_data = run_data.NT3RunData(output_dir, subdirectory)
@@ -272,15 +278,23 @@ nt3_data.add_run_id("*")
 df = nt3_data.dataframe
 print(df.describe())
 
-# Add in the cached data and fit the GPR model
+# =============================================================================
+# TODO: cache the dataframe
+# =============================================================================
 
-nt3csv = "nt3_initial_data.csv"
+# =============================================================================
+# # Add in the cached data and fit the GPR model
+# 
+# nt3csv = "nt3_initial_data.csv"
+# 
+# nt3_data.from_csv(nt3csv)
+# df = nt3_data.dataframe
+# print(df.describe())
+# =============================================================================
 
-nt3_data.from_csv(nt3csv)
-df = nt3_data.dataframe
-print(df.describe())
-
-# fit the Gaussian Procww Regression model
+# =============================================================================
+#  fit the Gaussian Procww Regression model
+# =============================================================================
 
 subdirectory="experiment_1"
 
@@ -295,7 +309,43 @@ factors =['optimizer',
           'conv']
 
 gpr_model = GPR_Model(df, X_columns, TARGET, factors)
-gpr_model.fit_EC()
-gpr_model.fit_MC()
-gpr_model.fit_UC()
-# equivalent to : gpr_model.fit()
+#gpr_model.fit_EC()
+#gpr_model.fit_MC()
+#gpr_model.fit_UC()
+# equivalent to : 
+gpr_model.fit()
+
+# =============================================================================
+# Optimize the prediction function from the GPR model.
+# Each point in the training data is used to start the optimization.
+# This will help to ensure that the global minimum is found.
+# The results are sorted by predicted validation loss.
+# The ParameterSet translates into parameter dictionaries.
+# A dataframe may be returned as well.
+# (Here only the first three points are returned.)
+# TODO: cluster the recommended values to explore local minima.
+# =============================================================================
+opt_rec, x_rec = gpr_model.optimize_recommend(3, ps, return_data=True)
+
+# =============================================================================
+# Use the Lower Confidence Bound strategy from mlrMBO to explore regions
+# of greater uncertainty in the prediction function.
+# (Again only three points are requested here.)
+# =============================================================================
+lcb_rec = gpr_model.LCB_recommend(3, ps)
+
+# send the results to different directories to facilitate comparison
+rec_params = []
+for p in opt_rec:
+    p = param_update(p, DEFAULT_PARAMS, len(rec_params),
+                     subdirectory='opt')
+    rec_params.append(p)
+
+for p in lcb_rec:
+    p = param_update(p, DEFAULT_PARAMS, len(rec_params),
+                     subdirectory='lcb')
+    rec_params.append(p)
+
+# =============================================================================
+# TODO: submit recommended parameters to keras...
+# =============================================================================
