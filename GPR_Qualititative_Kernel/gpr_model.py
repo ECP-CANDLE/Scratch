@@ -9,6 +9,7 @@ import kernels as kr
 import qualitative_kernels as qk
 import parameter_set as prs
 from sklearn.model_selection import ParameterSampler
+from sklearn.cluster import AffinityPropagation
 
 import pandas as pd
 import numpy as np
@@ -43,12 +44,9 @@ class GPR_Model(object):
         y = data_df[target]
         
         # Create auxiliary dataframe with dummy-coded indicators 
-        if factors:
-            #data_with_dummies = prs.DataFrameWithDummies(X, dummies=['shared_nnet_spec', 'ind_nnet_spec'])
-            #Xd = data_with_dummies.dataframe
-            Xd = pd.get_dummies(X, columns=factors, prefix_sep="|") if factors else X
-        else:
-            Xd = X
+        Xd = pd.get_dummies(X,
+                            columns=factors,
+                            prefix_sep=prefix_sep) if factors else X
             
         continuous_columns = []
         factor_columns = defaultdict(list)
@@ -288,18 +286,41 @@ class GPR_Model(object):
         # the dictionary will need to be decoded by a ParameterSet object
         result_data = pd.DataFrame(result_data)
         return result_data
-    
-    def optimize_recommend(self, n_recommend, param_set, gamma=1.0, delta=1.0,
+
+    def optimize_recommend(self, param_set, gamma=1.0, delta=1.0,
                            gpr=None, Xd=None,
                            return_data=False):
+        """Optimizes GPR model, using each data point as initial value
+        
+        Clusters the result using Affinity Propagation, and returns
+        the cluster representatives, choosing the number of clusters
+        automatically. The results are decoded into parameter sets."""
+        x = self.optimize(gamma=gamma, delta=delta, gpr=gpr, Xd=Xd)
+        aff = AffinityPropagation()
+        aff.fit(x)
+        x_rec = pd.DataFrame(aff.cluster_centers_, columns=x.columns)
+        paramdictlist = self.decode_dummies(x_rec, param_set)
+        if return_data:
+            return paramdictlist, x_rec
+        else:
+            return paramdictlist
+    
+    # TODO: this is probably obsolete since clustering should be superior
+    def optimize_recommend_sorted(self, param_set, max_recommend=0,
+                                  gamma=1.0, delta=1.0,
+                                  gpr=None, Xd=None,
+                                  return_data=False):
         """Optimizes GPR model, using each data point as initial value
         
         Returns one recommendation for each point, 
         however, these may all be the same if they all converge to the
         global minimum.  The results are decoded into parameter sets."""
+
         x = self.optimize(gamma=gamma, delta=delta, gpr=gpr, Xd=Xd)
         x.sort_values(by='gpr_optimum', inplace=True)
-        x_rec = x.iloc[:n_recommend]
+        if max_recommend < 1:
+            max_recommend = x.shape[0]
+        x_rec = x.iloc[:max_recommend]
         paramdictlist = self.decode_dummies(x_rec, param_set)
         if return_data:
             return paramdictlist, x_rec
@@ -333,17 +354,19 @@ class GPR_Model(object):
         # TODO: include X in lcb, to look up parameters from selected values
         return lcb
 
-    def LCB_recommend(self, n_recommend, param_set, n_sample=10,
+    def LCB_recommend(self, param_set, max_recommend=0, n_sample=10,
                       gpr=None, Xd=None,
                       return_data=False):
         """Lower Confidence Bound recommendations for GPR model"""
         gpr = self._get_gpr(gpr)
         if Xd is None:
             Xd = self.Xd
+        if max_recommend < 1:
+            max_recommend = Xd.shape[0]
         lcb = self.LCB(n_sample=n_sample, gpr=gpr, Xd=None)
         lcb['minimum'] = lcb.min(axis=1)
         lcb.sort_values(by='minimum', inplace=True)
-        Xdmin = Xd.iloc[lcb.index[:n_recommend]]
+        Xdmin = Xd.iloc[lcb.index[:max_recommend]]
         recommend = self.decode_dummies(Xdmin, param_set)
 #        recommend = []
 #        for i in range(Xdmin.shape[0]):

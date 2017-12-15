@@ -5,6 +5,7 @@ Created on Wed Oct 18 14:36:59 2017
 
 @author: johnbauer
 """
+from __future__ import print_function
 
 # =============================================================================
 # Assumes GPR_Qualitative_Kernel is located in Scratch/GPR_Qualitative_Kernel
@@ -41,7 +42,7 @@ for path in paths.values():
 
 
 import logging
-logging.basicConfig(filename='P1B1.log',level=logging.DEBUG)
+logging.basicConfig(filename='P1B1.log', level=logging.DEBUG)
 
 import run_data
 import p1b1_baseline_keras2 as p1b1k2
@@ -73,7 +74,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # =============================================================================
 
 # if True, parameter dictionaries will be sent to p1b1_baseline_keras2
-run_keras = True
+run_keras = False
 
 # Location of saved output
 output_dir = os.path.join(file_path, 'save')
@@ -266,6 +267,13 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     run_params['tb'] = run_params.get('tb', False)
     run_params['tsne'] = run_params.get('tsne', False)
     
+    # TODO: fix restrict_model so it works properly
+    model = run_params.get('model', False)
+    if not model:
+        # current hack should have put 'ae' or 'vae' in default_params
+        # but just make sure something is there...
+        run_params['model'] = default_params.get('model', 'vae')
+    
     return run_params
 
 # =============================================================================
@@ -399,8 +407,9 @@ if __name__ == "__main__":
     print(gpr_model.name_report(gpr_model.gpr_uc))
     
   
-    lcb_rec = gpr_model.LCB_recommend(3, ps)
-    opt_rec, x_rec = gpr_model.optimize_recommend(3, ps, return_data=True)
+    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=3)
+    opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
+                                                  return_data=True)
     
     # TODO: optimize_recommend finds all local minima; all points returned
     # could have converged to the same point, and be very close to each other.
@@ -414,7 +423,7 @@ if __name__ == "__main__":
     #default_params = p1b1.read_config_file("p1b1_default_model.txt")
     
     if restrict_model in ('ae', 'vae'):
-        default_params.update({ 'model' : restrict_model })
+        default_params.update({'model' : restrict_model})
         
     # TODO: last-minute additions to default_params could be done here, e.g.
     #default_params['logfile'] = 'logfile.txt'
