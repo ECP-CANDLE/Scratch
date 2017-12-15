@@ -63,7 +63,7 @@ Compare to training data:
 Requires cython, numpy, scipy, scikit-learn, pandas.  Anaconda install will
 have everything except cython; `conda install cython` should take care of that.
 (There are pure python versions that could be swapped in instead.)
-Clone Scratch alongside Benchmarks, or edit paths near the beginning
+Clone Scratch alongside Benchmarks, or edit paths near the beginning of the demo.
 
 
 An earlier test run was even more successful:
@@ -76,3 +76,5 @@ An earlier test run was even more successful:
 |Lower Confidence Bound	|0.190620556473732|
 |Lower Confidence Bound	|0.014625415603319803|
 |Lower Confidence Bound	|0.007932033731291692|
+
+There is also a demo for NT3; P3B1 should be available soon.
