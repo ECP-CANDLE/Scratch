@@ -602,6 +602,10 @@ class CompoundKernel(Kernel):
             return False
         return np.all([self.kernels[i] == b.kernels[i]
                        for i in range(len(self.kernels))])
+    
+    def __repr__(self):
+        return "{0}[\n\t{1}\n\t]".format(self.__class__.__name__,
+                ",\n\t".join(repr(k) for k in self.kernels))
 
     def is_stationary(self):
         """Returns whether the kernel is stationary. """

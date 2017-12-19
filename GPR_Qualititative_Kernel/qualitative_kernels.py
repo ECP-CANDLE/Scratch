@@ -199,9 +199,9 @@ class Projection(Kernel):
 # =============================================================================
 class Factor(Projection):
     def __init__(self, columns, name):
-        super(Factor, self).__init__(RBF([1.0] * len(columns)),
-                                     columns,
-                                     name)
+        super(Factor, self).__init__(columns,
+                                     name,
+                                     kernel=RBF([1.0] * len(columns)))
 
     def get_params(self, deep=True):
         """Get parameters of this kernel.
@@ -227,176 +227,6 @@ class Factor(Projection):
             params.update(("{}__{}".format(self.name, k), val) for k, val in deep_items)
         return params
 
-class DefunctExchangeableKernel(Kernel):
-    # crude implementation, mixes ideas from Projection and Product kernels
-    def __init__(self, n1, r):
-        self.n1 = n1
-        self.r = r
-        
-    def __call__(self, X, Y=None, eval_gradient=False):
-        K1 = RBF()
-        X1 = X[:,:self.n1]
-        X2 = X[:,self.n1:]
-        # crude implementation
-        N = X.shape[0]
-        K2 = np.ones((N,N))
-        for i in range(N):
-            ci = X[i,self.n1]
-            for j in range(N):
-                cj = X[j,self.n1]
-                K2[i,j] = 1.0 if ci == cj else self.r
-        if Y is not None:
-            Y1 = Y[:,:self.n1]
-        else:
-            Y1 = None
-        # make sure this is elementwise multiplication
-        return K1(X1, Y1) * K2
-    
-    def diag(self, X):
-        #return RBF().diag(X[:,self.n1])
-        return np.ones([X.shape[0]], dtype=np.float64)
-    
-    def is_stationary(self):
-        return False
-
-# =============================================================================
-# # =============================================================================
-# # Cythonize construction of matrices and gradient for efficiency
-# # =============================================================================
-# class HyperSphere(object):
-#     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
-#     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
-#     interval (0, pi).
-#     """
-#     def __init__(self, dim, zeta=[]):
-#         m = dim*(dim-1)//2
-#         self.dim = dim
-#         if isinstance(zeta, (list, tuple, np.ndarray)) and len(zeta):
-#             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
-#         elif isinstance(zeta, (int, float, np.float64, np.int64)):
-#             zeta = [zeta]
-#         else:
-#             zeta = [pi/4.0]*m
-#         zeta_lt = np.zeros((dim, dim))
-#         # lower triangular indices, offset -1 to get below-diagonal elements
-#         for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
-#             zeta_lt[ind] = th
-#         # set the diagonal to 1
-#         for i in range(dim):
-#             zeta_lt[i,i] = 1.0
-#         self.zeta = zeta_lt
-#         self._lt = None
-#         #self._lt = self._lower_triangular()
-#             
-#     # see HyperSphere_test for pure Python equivalent
-#     def _lower_triangular(self):
-#         if self._lt is None:
-#             self._lt = hs.HyperSphere_lower_triangular(self.dim, self.zeta)
-#         return self._lt
-#     
-#     @property
-#     def correlation(self):
-#         lt = self._lower_triangular()
-#         return lt.dot(lt.T)
-# 
-#     # see HyperSphere_test for pure Python equivalent
-#     def _lower_triangular_derivative(self):
-#         dim = self.dim
-#         zeta = self.zeta
-#         dLstack = []
-#         for dr, ds in zip(*np.tril_indices(dim, -1)):
-#             dL = hs.HyperSphere_lower_triangular_derivative(dim, zeta, dr, ds)
-#             dLstack.append(dL)
-#         return dLstack
-#     
-#     def gradient(self):
-#         L = self._lower_triangular()
-#         dLstack = self._lower_triangular_derivative()
-#         gradstack = []
-#         for dL in dLstack:
-#             dLLt = dL.dot(L.T)
-#             grad = dLLt + dLLt.T
-#             gradstack.append(grad)
-#         return gradstack
-#     
-# # =============================================================================
-# # Pure Python implememntation, compare to Cython version for testing
-# # =============================================================================
-# class HyperSphere_test(HyperSphere):
-#     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
-#     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
-#     interval (0, pi).
-#     """
-#     def __init__(self, dim, zeta=[]):
-#         m = dim*(dim-1)//2
-#         self.dim = dim
-#         if isinstance(zeta, (list, tuple)) and len(zeta):
-#             assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
-#         elif isinstance(zeta, (int, float, np.float64, np.int64)):
-#             zeta = [zeta]
-#         else:
-#             zeta = [pi/4.0]*m
-#         zeta_lt = np.zeros((dim, dim))
-#         # lower triangular indices, offset -1 to get below-diagonal elements
-#         for th, ind in zip(zeta, zip(*np.tril_indices(dim,-1))):
-#             zeta_lt[ind] = th
-#         # set the diagonal to 1
-#         for i in range(dim):
-#             zeta_lt[i,i] = 1.0
-#         self.zeta = zeta_lt
-#         self._lt = self._lower_triangular()
-#             
-#     def _lower_triangular(self):
-#         dim = self.dim
-#         zeta = self.zeta
-#         L = np.zeros((dim, dim), dtype=np.float64)
-#         L[0,0] = 1.0
-#         for r in range(1,dim):
-#             for s in range(r):
-#                 L[r,s] = cos(zeta[r,s])
-#                 for j in range(s):
-#                     L[r,s] *= sin(zeta[r,j])
-#             L[r,r] = 1.0
-#             for j in range(r):
-#                 L[r,r] *= sin(zeta[r,j])
-#         return L
-#     
-#     @property
-#     def correlation(self):
-#         lt = self._lt
-#         return lt.dot(lt.T)
-# 
-#     def _lower_triangular_derivative(self):
-#         dim = self.dim
-#         zeta = self.zeta
-#         #dL[0,0] = 0.0
-#         dLstack = []
-#         for dr, ds in zip(*np.tril_indices(dim, -1)):
-#             dL = np.zeros((dim, dim), dtype=np.float64)
-#             for s in range(dr):
-#                 if 0 <= ds <= s:
-#                     dL[dr,s] = cos(zeta[dr,s]) if s != ds else -sin(zeta[dr,s])
-#                     for j in range(s):
-#                         dL[dr,s] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
-#             dL[dr,dr] = 1.0 
-#             for j in range(dr):
-#                 dL[dr,dr] *= sin(zeta[dr,j]) if j != ds else cos(zeta[dr,j])
-#             dLstack.append(dL)
-#         return dLstack
-#     
-#     def gradient(self):
-#         L = self._lt
-#         dLstack = self._lower_triangular_derivative()
-#         gradstack = []
-#         for dL in dLstack:
-#             dLLt = dL.dot(L.T)
-#             grad = dLLt + dLLt.T
-#             gradstack.append(grad)
-#         return gradstack   
-# =============================================================================
-        
-    
-    
 # =============================================================================
 # Assumes X includes a factor f which has been dummy coded into columns
 # F = (f_0, f_1, ... f_dim-1)
@@ -575,7 +405,7 @@ class ExchangeableCorrelation(Kernel):
                                n_elements=1,
                                log=False)
 
-    def initialize_multiplicative_correlation(self, epsilon=0.00001):
+    def multiplicative_correlation(self, epsilon=0.00001):
         """Calculates the values used to initialize MultiplicativeCorrelation
         
         Use epsilon to bound values away from 0 and 1, guaranteeing 
@@ -680,7 +510,7 @@ class MultiplicativeCorrelation(NormalizedKernelMixin, Kernel):
                                n_elements=self.dim,
                                log=False)
 
-    def initialize_unrestrictive_correlation(self):
+    def unrestrictive_correlation(self):
         """Calculate parameters to initialize UnrestrictiveCorrelation kernel"""
         # assume all entries are positive, will be true if produced by MC model
 
@@ -727,7 +557,8 @@ class Tensor(CompoundKernel):
             
     def diag(self, X):
         return reduce(lambda d0, d1 : d0 * d1, (k.diag(X) for k in self.kernels))
-            
+    
+    
 class DirectSum(CompoundKernel):
     def __init__(self, kernels):
         super(DirectSum, self).__init__(kernels)
@@ -749,216 +580,13 @@ class DirectSum(CompoundKernel):
     def diag(self, X):
         return reduce(lambda d0, d1 : d0 + d1, (k.diag(X) for k in self.kernels))
 
-# =============================================================================
-# TODO: there should be no difference between putting a single RBF kernel
-# with individual length scales on the set of dummy-coded variables for a factor,
-# and the product of individual RBF kernels as done here.
-# So why not use the simpler implementation?
-#     kernel = ck.Projection(RBF([1.0]*n_continuous, (0.001, 1000.0)), continuous_columns, name="continuous")
-# =============================================================================
-class SimpleFactorKernel(Tensor):
-    """Alternative implementation of SimpleCategoricalKernel
-    
-    Testing the water with CompoundKernel before attempting Tensor
-    """
-    def __init__(self, columns):     #, length_scale, length_scale_bounds=()):
-        """Dummy-code the given column, put a RBF kernel
-        on each of the variates, then return the product kernel
-        
-        If all length scales are small, assume little shared information
-        between categories
-        
-        kernel will typically be RBF with a single length parameter
-        (passing in an alternative kernel not currently implemented)
-        """
-#        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
-#        self.column = [column] if isinstance(column, int) else column
-#        assert all(isinstance(i, int) for i in self.column), "must be integers"
-        self.columns = columns        
 
-        kernels = [Projection(RBF(), [c]) for c in columns]
-                                    #factor_name(c)) for c in columns]
-    
-        # collect all the kernels to be combined into a single product kernel
-        super(SimpleFactorKernel, self).__init__(kernels)    
-
-    def get_params(self, deep=True):
-        """Get parameters of this kernel.
-
-        Parameters
-        ----------
-        deep: boolean, optional
-            If True, will return the parameters for this estimator and
-            contained subobjects that are estimators.
-
-        Returns
-        -------
-        params : mapping of string to any
-            Parameter names mapped to their values.
-        """
-        #params = dict(kernel=self.kernel, dim=self.dim)
-        params = dict(columns=self.columns)
-        if deep:
-            for i, kernel in enumerate(self.kernels):
-                print("--->", "\ti = ", i, "\tkernel = ", kernel)
-                deep_items = kernel.get_params().items()
-                #params.update((k, val) for k, val in deep_items)
-                for k, val in deep_items:
-                    print("\tkey = ", k, "\tvalue = ", val)
-                params.update(('k{}__{}'.format(i, k), val) for k, val in deep_items)
-        return params        
-        
-class SimpleCategoricalKernel(Kernel):
-    def __init__(self, dim):     #, length_scale, length_scale_bounds=()):
-        """Dummy-code the given column, put a RBF kernel
-        on each of the variates, then return the product kernel
-        
-        If all length scales are small, assume little shared information
-        between categories
-        
-        kernel will typically be RBF with a single length parameter
-        (passing in an alternative kernel not currently implemented)
-        """
-#        assert isinstance(column, (list, tuple, int)), "must be int or list of ints"
-#        self.column = [column] if isinstance(column, int) else column
-#        assert all(isinstance(i, int) for i in self.column), "must be integers"
-        self.dim = dim
-        
-        kernels = [Projection(RBF(), [c]) for c in range(dim)]
-
-        # combine the kernels into a single product kernel
-        self.kernel = reduce(lambda k0, k1 : k0 * k1, kernels)
-
-    def __call__(self, X, Y=None, eval_gradient=False):
-        """Assumes dummy-coded data e.g. from a single column 
-        project onto each category"""
-
-        assert X.shape[1] == self.dim, "Wrong dimension for X"
-        if Y is not None:
-            assert Y.shape[1] == self.dim, "Wrong dimension for Y"
-        
-        return self.kernel(X, Y, eval_gradient=eval_gradient)
-    
-
-#    @property
-#    def hyperparameter_length_scale(self):
-#        return  Hyperparameter(name="length_scale", value_type="numeric", bounds=self.bounds, n_elements=len(self.dim))
-    
-# =============================================================================
-# Propose a UnaryOperator class to include Exponentiation kernel, 
-# Projection, SimpleCategoricalKernel, and so on
-# The sequel is copied wholesale from ExponentiationKernel
-# =============================================================================
-    def get_params(self, deep=True):
-        """Get parameters of this kernel.
-
-        Parameters
-        ----------
-        deep: boolean, optional
-            If True, will return the parameters for this estimator and
-            contained subobjects that are estimators.
-
-        Returns
-        -------
-        params : mapping of string to any
-            Parameter names mapped to their values.
-        """
-        #params = dict(kernel=self.kernel, dim=self.dim)
-        params = dict(dim=self.dim)
-        if deep:
-            deep_items = self.kernel.get_params().items()
-            params.update((k, val) for k, val in deep_items)
-        return params
-
-    @property
-    def hyperparameters(self):
-        """Returns a list of all hyperparameter."""
-        r = []
-        for hyperparameter in self.kernel.hyperparameters:
-            r.append(Hyperparameter(hyperparameter.name,
-                                    hyperparameter.value_type,
-                                    hyperparameter.bounds,
-                                    hyperparameter.n_elements,
-                                    hyperparameter.log))
-        return r
-
-    @property
-    def theta(self):
-        """Returns the (flattened, log-transformed) non-fixed hyperparameters.
-
-        Note that theta are typically the log-transformed values of the
-        kernel's hyperparameters as this representation of the search space
-        is more amenable for hyperparameter search, as hyperparameters like
-        length-scales naturally live on a log-scale.
-
-        Returns
-        -------
-        theta : array, shape (n_dims,)
-            The non-fixed, log-transformed hyperparameters of the kernel
-        """
-        return self.kernel.theta
-
-    @theta.setter
-    def theta(self, theta):
-        """Sets the (flattened, log-transformed) non-fixed hyperparameters.
-
-        Parameters
-        ----------
-        theta : array, shape (n_dims,)
-            The non-fixed, log-transformed hyperparameters of the kernel
-        """
-        self.kernel.theta = theta
-
-    @property
-    def bounds(self):
-        """Returns the log-transformed bounds on the theta.
-
-        Returns
-        -------
-        bounds : array, shape (n_dims, 2)
-            The log-transformed bounds on the kernel's hyperparameters theta
-        """
-        return self.kernel.bounds
-
-    def __eq__(self, b):
-        if type(self) != type(b):
-            return False
-        return (self.kernel == b.kernel and self.dim == b.dim)
-
-
-    def diag(self, X):
-        """Returns the diagonal of the kernel k(X, X).
-
-        The result of this method is identical to np.diag(self(X)); however,
-        it can be evaluated more efficiently since only the diagonal is
-        evaluated.
-
-        Parameters
-        ----------
-        X : array, shape (n_samples_X, n_features)
-            Left argument of the returned kernel k(X, Y)
-
-        Returns
-        -------
-        K_diag : array, shape (n_samples_X,)
-            Diagonal of kernel k(X, X)
-        """
-        return self.kernel.diag(X)
-
-    def __repr__(self):
-        return "{0} dummy coded on {1} dimensions".format(self.kernel, self.dim)
-
-    def is_stationary(self):
-        """Returns whether the kernel is stationary. """
-        return self.kernel.is_stationary()
-
-    
 if __name__ == "__main__":
     
     X = np.array([[1,2,3,0],[2,1,3,0],[2,2,3,1],[1,4,3,2]])
     # note only two dimensions are being retained by the projection
     rbf = RBF(length_scale=np.ones(2))
-    fubar = Projection(rbf, [2,3], "proj")
+    fubar = Projection([2,3], "proj", kernel=rbf)
     K = fubar(X)
     print("Projection Kernel:\n", K)
     print("Diagonal:\n", fubar.diag(X))
@@ -991,14 +619,19 @@ if __name__ == "__main__":
     print(K)
     #print(G)
 
-    sk = SimpleCategoricalKernel(4)
-    print(sk.get_params(deep=False))
-    print(sk.hyperparameters)
+# =============================================================================
+#     sk = SimpleCategoricalKernel(4)
+#     print(sk.get_params(deep=False))
+#     print(sk.hyperparameters)
+# =============================================================================
     
-    prod = sk * ltk4
+    prod = ltk4 * ltk4
     print(prod.get_params(deep=False))
     print(prod.hyperparameters)
     
     ltk4.theta = [pi/i for i in range(1,7)]
     print(ltk4.theta)
     print(ltk4.zeta)
+    
+    t = Tensor([fubar, ltk4, RBF()])
+    print(t)

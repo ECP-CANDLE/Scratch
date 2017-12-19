@@ -139,7 +139,7 @@ class GPR_Model(object):
         for factor, columns in self.factor_columns.items():
             dim = len(columns)
             try:
-                theta = ec_kernel[factor].initialize_multiplicative_correlation()
+                theta = ec_kernel[factor].multiplicative_correlation()
                 print("Initializing factor '{}' with {}".format(factor, theta))
             except:
                 print("Whoops! Factor {} not found".format(factor))
@@ -196,7 +196,7 @@ class GPR_Model(object):
                 pass
             else:
                 try:
-                    theta = uc_kernel[factor].initialize_unrestrictive_correlation()
+                    theta = uc_kernel[factor].unrestrictive_correlation()
                 except:
                     print("Whoops! Factor {} not found".format(factor))
                     theta = np.array([0.1] * m)
