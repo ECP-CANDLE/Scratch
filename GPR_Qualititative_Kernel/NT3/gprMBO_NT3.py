@@ -287,14 +287,17 @@ gpr_model.fit()
 # (Here only the first three points are returned.)
 # TODO: cluster the recommended values to explore local minima.
 # =============================================================================
-opt_rec, x_rec = gpr_model.optimize_recommend(3, ps, return_data=True)
+opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
+                                              max_recommend=3,
+                                              return_data=True)
 
 # =============================================================================
 # Use the Lower Confidence Bound strategy from mlrMBO to explore regions
 # of greater uncertainty in the prediction function.
 # (Again only three points are requested here.)
 # =============================================================================
-lcb_rec = gpr_model.LCB_recommend(3, ps)
+lcb_rec = gpr_model.LCB_recommend(param_set=ps,
+                                  max_recommend=3)
 
 # send the results to different directories to facilitate comparison
 rec_params = []
