@@ -20,7 +20,14 @@ import hypersphere_cython as hs
 class HyperSphere(object):
     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
-    interval (0, pi).
+    interval (0, pi).  Used for constructing correlation matrices over
+    dummy-coded variables representing a categorical variable (factor).
+    
+    Parameters
+    ----------
+    dim     int dimension, the number of category levels
+    zeta    optional, list or array of parameter values, between 0 and pi
+            If supplied, the length must be dim * (dim - 1) / 2 
     """
     def __init__(self, dim, zeta=[]):
         m = dim*(dim-1)//2
@@ -36,10 +43,6 @@ class HyperSphere(object):
         zeta_lt[np.tril_indices(dim, -1)] = np.array(zeta, dtype=np.float64)
         # set the diagonal to 1
         np.fill_diagonal(zeta_lt, 1.0)
-#        for z, ind in zip(zeta, zip(*np.tril_indices(dim, -1))):
-#            zeta_lt[ind] = z
-#        # set the diagonal to 1
-#        #np.fill_diagonal(zeta_lt.s, 1.0)
 
         self.zeta = zeta_lt
         
@@ -49,9 +52,9 @@ class HyperSphere(object):
         self._initialize_trig_values()
         
         self._lt = None
-        # CAUTION do not cache values at initialization without making sure
-        # clone_with_theta will trigger their recalculation !
-        #self._lt = self._lower_triangular()
+        # CAUTION do not cache values at initialization because
+        # clone_with_theta will not trigger their recalculation with the new
+        # parameter values
        
     def _initialize_trig_values(self):
         cos_zeta = np.zeros((self.dim, self.dim), dtype=np.float64)
@@ -83,6 +86,7 @@ class HyperSphere(object):
     
     @property
     def correlation(self):
+        """Correlation matrix corresponding to zeta."""
         lt = self._lower_triangular()
         corr = lt.dot(lt.T)
         # this is not strictly needed, 
@@ -110,6 +114,9 @@ class HyperSphere(object):
     
     @property
     def gradient(self):
+        """List of gradients, one for each parameter.
+        
+        Not used directly for computations; primarily for testing."""
         L = self._lower_triangular()
         dLstack = self._lower_triangular_derivative()
         gradstack = []
@@ -120,17 +127,16 @@ class HyperSphere(object):
             gradstack.append(grad)
         return gradstack
     
-    # TODO: migrate this to MultiplicativeCorrelation kernel 
+    # TODO: check that correlation(zeta(C)) == C
+    #       and zeta(correlation(z)) == z
     @staticmethod
-    def zeta(mult_correlations):
-        # assume all entries are positive, will be true if produced by MC model
-
-        t = np.array(mult_correlations, dtype=np.float64)
-        t = np.exp(-t)
-        t = np.atleast_2d(t)
-        T = t.T.dot(t)
-        np.fill_diagonal(T, 1.0)
-        L = cholesky(T, lower=True)
+    def zeta(correlation):
+        """"Hypersphere parameterization of a kernel or correlation matrix. """
+        K = correlation
+        assert isinstance(K, np.ndarray), "Correlations must be an array"
+        assert K.shape[0] == K.shape[1], "Correlations must be square"
+        np.fill_diagonal(K, 1.0)
+        L = cholesky(K, lower=True)
         C = np.zeros_like(L)
         S = np.zeros_like(L)
         dim = L.shape[0]
@@ -142,10 +148,12 @@ class HyperSphere(object):
                 C[r,s] = L[r,s]/prod
                 S[r,s] = sqrt(1.0 - C[r,s]**2)
                 prod *= S[r,s]
-            print("check: {} = {} : difference {}".format(L[r,r], prod, L[r,r] - prod))
+            #print("check: {} = {} : difference {}".format(L[r,r], prod, L[r,r] - prod))
         return np.arccos(C[np.tril_indices(dim, -1)])
     
-class HyperSphere_full_gradient_pure(HyperSphere):
+    
+class HyperSphere_full_gradient(HyperSphere):
+    """Working on a parallelizable gradient computation"""
     def _lower_triangular_derivative_row(self, dr, ds):
         """For given dr, all non-zero elements are in the same row"""
         dim = self.dim
@@ -188,6 +196,12 @@ class HyperSphere_pure(HyperSphere):
     """Parameterizes the d-1-dimensional surface of a d-dimensional hypersphere
     using a lower triangular matrix with d*(d-1)/2 parameters, each in the 
     interval (0, pi).
+    
+    Parameters
+    ----------
+    dim     int dimension, the number of category levels
+    zeta    optional, list or array of parameter values, between 0 and pi
+            If supplied, the length must be dim * (dim - 1) / 2     
     """
     def __init__(self, dim, zeta=[]):
         m = dim * (dim - 1) // 2
@@ -228,11 +242,6 @@ class HyperSphere_pure(HyperSphere):
                     L[r,s] = L_rs
             self._lt = L
         return self._lt
-    
-#    @property
-#    def correlation(self):
-#        lt = self._lower_triangular()
-#        return lt.dot(lt.T)
 
     def _lower_triangular_derivative(self):
         dim = self.dim

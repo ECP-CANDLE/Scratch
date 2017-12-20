@@ -123,7 +123,7 @@ class Projection(Kernel):
 
     @property
     def hyperparameters(self):
-        """Returns a list of all hyperparameter."""
+        """Returns a list of all hyperparameters for the kernel."""
         r = []
         for hyperparameter in self.kernel.hyperparameters:
             name = "{}__{}".format(self.name, hyperparameter.name)
@@ -163,7 +163,7 @@ class Projection(Kernel):
 
     @property
     def bounds(self):
-        """Returns the log-transformed bounds on the theta.
+        """Returns the (log-transformed) bounds on the theta.
 
         Returns
         -------
@@ -242,7 +242,6 @@ class  UnrestrictiveCorrelation(NormalizedKernelMixin, Kernel):
 
     """
     def __init__(self, dim, zeta=[], zeta_bounds=(0.0, pi)): # add 2*pi in hopes of eliminating difficulties with log transform
-        # TODO: fix this so zeta can be a list or array
         self.dim = dim
         m = dim*(dim-1)/2
         zeta = np.array(zeta, dtype=np.float64)
@@ -250,10 +249,6 @@ class  UnrestrictiveCorrelation(NormalizedKernelMixin, Kernel):
         assert len(zeta) == m, "Expecting {0}*({0}-1)/2 elements".format(dim)
         self.zeta = zeta
         self.zeta_bounds = zeta_bounds
-        # TODO: other models for correlation structure (exchangeable, multiplicative)
-        # DON'T try to cache HyperSphere --- clone_with_theta won't reset it 
-        #self._hs = HyperSphere(dim, zeta)
-        #self.corr = self.hs.correlation
 
     def __call__(self, X, Y=None, eval_gradient=False):
         """Return the kernel k(X, Y) and optionally its gradient.
@@ -284,9 +279,6 @@ class  UnrestrictiveCorrelation(NormalizedKernelMixin, Kernel):
             hyperparameters of the kernel. Only returned when eval_gradient
             is True.
         """
-        
-        #logging.debug("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
-        #print("Factor: evaluate kernel for zeta:\n{}".format(self.zeta))
         assert X.shape[1] == self.dim, "Wrong dimension for X"
         if Y is not None:
             assert Y.shape[1] == self.dim, "Wrong dimension for Y"
@@ -313,11 +305,21 @@ class  UnrestrictiveCorrelation(NormalizedKernelMixin, Kernel):
         
     @property
     def hypersphere(self):
+        """Handles details of parameterization of the correlation matrix.
+        
+        DO NOT cache this object, clone_with_theta() will not
+        update it properly with new zeta values."""
+
         return HyperSphere(self.dim, self.zeta)
     
     @property
     def correlation(self):
-        #return self.hs.correlation
+        """Transform the hypersphere parameterization into correlations.
+        
+        Returns
+        -------
+        K : array, shape (dim, dim)
+        """
         return self.hypersphere.correlation
         
     def is_stationary(self):
@@ -412,6 +414,7 @@ class ExchangeableCorrelation(Kernel):
         return np.ones(X.shape[0])
 
     def is_stationary(self):
+        """Returns whether the kernel is stationary. """
         return True
     
     def __repr__(self):
@@ -499,6 +502,7 @@ class MultiplicativeCorrelation(NormalizedKernelMixin, Kernel):
         return C
 
     def is_stationary(self):
+        """Returns whether the kernel is stationary. """
         return False
             
     @property
@@ -511,13 +515,29 @@ class MultiplicativeCorrelation(NormalizedKernelMixin, Kernel):
                                log=False)
 
 # =============================================================================
-# TODO: migrate most of this code to UnrestrictiveCorrelation
+# TODO: migrate most of this code to hyprsphere
 # should be able to test: correlation = L*L.T
 # L -> C, S -> zeta
 # and conversely:
 # zeta -> L -> L*L.T = correlation
 # =============================================================================
     def unrestrictive_correlation(self):
+        """Calculate parameters to initialize UnrestrictiveCorrelation kernel.
+        
+        Assume all zeta values are positive, which will be true if produced by
+        MultiplicativeCorrelation model."""
+
+        t = np.array(self.zeta, dtype=np.float64)
+        t = np.exp(-t)
+        t = np.atleast_2d(t)
+        T = t.T.dot(t)
+        
+        return HyperSphere.zeta(T)
+        
+# =============================================================================
+# TODO: move to hypersphere, this version is for testing
+# =============================================================================
+    def unrestrictive_correlation_pure(self):
         """Calculate parameters to initialize UnrestrictiveCorrelation kernel.
         
         Assume all zeta values are positive, which will be true if produced by

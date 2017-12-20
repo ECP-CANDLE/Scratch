@@ -111,12 +111,6 @@ import scipy as sp
 from scipy.stats.distributions import expon
 
 # =============================================================================
-# data are correctly reshaped but warning is present any, so suppress them all
-# =============================================================================
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
-# =============================================================================
 # # =============================================================================
 # # CONFIGURATION stuff done here for now
 # # =============================================================================
@@ -166,8 +160,6 @@ ps["optimizer"] = prs.DiscreteParameter(optimizer)
 ps["drop"] = prs.NumericParameter(0.0, 0.9)
 ps["learning_rate"] = prs.NumericParameter(0.00001, 0.1)
 ps["conv"] = prs.DiscreteParameter(conv)
-# TODO: since dense and conv will be dummy-coded, ensure that all possible
-# category values are present in the parameter set
 
 print(ps)
 

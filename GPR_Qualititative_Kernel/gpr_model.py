@@ -20,7 +20,25 @@ import logging
 logging.basicConfig(filename='GPR_Model.log',level=logging.DEBUG)
 
 class GPR_Model(object):
-    """Given a dataframe, construct views for X, Y and dummy-coded factors"""
+    """Given a dataframe, construct views for X, Y and dummy-coded factors.
+    
+    Currently, constructs a kernel which is the product of:
+        a ConstantKernel
+        an RBFKernel over the set of all continuous variables
+        for each factor:
+            create a set of dummy-coded variables
+            put an ExchangeableCorrelation, MultiplicativeCorrelation,
+            or UnrestrictiveCorrelation on the dummy-coded variates
+            
+        The .fit() method runs a Gaussian Process Regression on the data
+        The resulting model may be numerically optimized
+        Each point in the data is used to initialize the optimizer, and the
+        resulting set of local minima are identified by Affinity Propagation
+        clustering.
+        Implementations of the Lower Confidence Bound and FocusSearch 
+        algorithms as described in mlrMBO may be used to generate candidate
+        parameter dictionaries.
+    """
     def __init__(self, data_df, X_columns, target, factors=[], 
                  prefix_sep="|"):
         
