@@ -7,7 +7,13 @@ Created on Mon Oct  9 09:09:33 2017
 """
 from __future__ import print_function
 
-from hypersphere import HyperSphere
+try:
+    from hypersphere import HyperSphere
+    print("HyperSphere: using Cython version")
+except:
+    from hypersphere_pure import HyperSphere
+    print("HyperSphere: using pure Python version")
+
 #import hypersphere_cython as hs
 
 from math import pi, log, sqrt

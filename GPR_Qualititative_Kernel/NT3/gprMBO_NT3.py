@@ -61,8 +61,7 @@ from gpr_model import GPR_Model, report
 from sklearn.model_selection import ParameterGrid  #, ParameterSampler
 
 import random
-import pandas as pd
-import numpy as np
+
 #import scipy as sp
 #from scipy.stats.distributions import expon
 
@@ -71,11 +70,12 @@ import numpy as np
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
+
 # =============================================================================
 # CONFIGURATION done here for now
 # =============================================================================
 
-# if True, parameter dictionaries will be sent to p1b1_baseline_keras2
+# if True, parameter dictionaries will be sent to nt3_baseline_keras2
 run_keras = True
 
 # Location of saved output
@@ -100,36 +100,6 @@ N_INITIAL = 60
 # set to any number larget than N_INTIAL to use all the data
 MAX_DEMO = 1000
 
-from collections import defaultdict
-
-import nt3_baseline_keras2 as nt3b
-
-import parameter_set as prs
-
-
-import scipy as sp
-from scipy.stats.distributions import expon
-
-# =============================================================================
-# # =============================================================================
-# # CONFIGURATION stuff done here for now
-# # =============================================================================
-# 
-# file_path = os.path.dirname(os.path.realpath(__file__))
-# config_file = os.path.join(file_path, 'nt3_default_model.txt')
-# output_dir = os.path.join(file_path, 'save') 
-# subdirectory = "exp_4" #'experiment_0' 
-# 
-# # read in global default parametere configuration
-# default_params = nt3b.read_config_file(config_file)
-# 
-# # don't fit models with ridiculously large losses, as defined here
-# # there is at least one keras run with a validation loss > 8 
-# MAX_LOSS = 2
-# 
-# # the target is validation_loss, could be training_loss or runtime_hours
-# TARGET = 'validation_loss'
-# =============================================================================
 
 
 # =============================================================================
