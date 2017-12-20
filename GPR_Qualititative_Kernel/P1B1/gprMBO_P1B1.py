@@ -411,11 +411,11 @@ if __name__ == "__main__":
     opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
                                                   return_data=True)
     
-    # TODO: optimize_recommend finds all local minima; all points returned
+    # optimize_recommend finds all local minima; all points returned
     # could have converged to the same point, and be very close to each other.
-    # Need to screen recommendations using clustering or similar
-    # to eliminate duplicates and near-duplicates.
-    
+    # Recommendations are clustered with Affinity Propagation
+    # and the 'most-representative' results returned.  The number of
+    # clusters is determined automatically.
 
     # Use the default model read in from Benchmarks/P1B1
     default_params = DEFAULT_PARAMS
