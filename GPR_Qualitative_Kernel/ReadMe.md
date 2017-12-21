@@ -23,12 +23,17 @@ Technometrics Vol. 53 , Iss. 3,2011
 > several examples.
 
 The kernels proposed in the referenced paper are implemented for use with the 
-Gaussian Process Regressor in scikit-learn.  
+Gaussian Process Regressor in scikit-learn.  Some of the most expensive numerical
+computations in the gradient computation are accelerated by compiling with cython.
 
 Running P1B1/gprMBO_P1B1.py gives a minimal demonstration of their efficacy 
 when applied to data from P1B1.  This will fit a GPR model to cached data,
 and numerically optimize the resulting prediction function
 (adding penalties to enforce feasibility of the solution).  
+
+NT3/gprMBO_NT3.py is similar, but also demonstrates sampling from a grid to 
+obtain initial data, running keras, recovering the results, then fitting the
+GPR model, optimizing, and adding the results to the initial data.
 
 Overall, it is patterned on mlrMBO, but removes the use of  
 Random Forest Regression as a surrogate, instead directly modeling the 
@@ -60,12 +65,6 @@ Compare to training data:
 |75%      | 0.698732|
 |max      | 0.985598|
 
-Requires cython, numpy, scipy, scikit-learn, pandas.  Anaconda install will
-have everything except cython; `conda install cython` should take care of that.
-(There are pure python versions that could be swapped in instead.)
-Clone Scratch alongside Benchmarks, or edit paths near the beginning of the demo.
-
-
 An earlier test run was even more successful:
 
 |Method	|Validation Loss|
@@ -77,4 +76,17 @@ An earlier test run was even more successful:
 |Lower Confidence Bound	|0.014625415603319803|
 |Lower Confidence Bound	|0.007932033731291692|
 
-There is also a demo for NT3; P3B1 should be available soon.
+#### Installation
+Requires numpy, scipy, scikit-learn, pandas, and optionally, cython.  A standard Anaconda 
+installation will have everything except cython; `conda install cython` should take care of that.
+(If cython is not available, it will use a pure python version.)
+
+Clone Scratch alongside Benchmarks, or edit paths near the beginning of the demo to match the 
+actual directory structure.
+
+If cython is installed, in the directory containing hypersphere_cython.pyx, run:
+`python setup.py build_ext --inplace`
+
+A P3B1 demo should be available soon.  This will show how the Affinity Propagation clustering 
+is used to identify the distinct local minima (corresponding to the 5 sub-problems from which
+the average loss was constructed).
