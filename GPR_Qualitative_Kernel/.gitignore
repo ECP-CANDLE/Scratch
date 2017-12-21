@@ -3,6 +3,8 @@
 **/save/training.log
 # ignore compiled python
 **/*.pyc
+**/*.c
+**/*.so
 # ignore Spyder project
 **/.spyproject
 **/.DS_Store
