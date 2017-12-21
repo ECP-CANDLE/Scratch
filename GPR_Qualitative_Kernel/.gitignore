@@ -5,7 +5,7 @@
 **/*.pyc
 **/*.c
 **/*.so
-**/build
+/build
 # ignore Spyder project
 **/.spyproject
 **/.DS_Store
