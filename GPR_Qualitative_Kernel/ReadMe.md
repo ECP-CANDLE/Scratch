@@ -87,6 +87,10 @@ actual directory structure.
 If cython is installed, in the directory containing hypersphere_cython.pyx, run:
 `python setup.py build_ext --inplace`
 
+There is a "Configuration" section near the beginning of each demo.  `run_keras = True` will 
+submit the parameter dictionaries to keras.  This is currently `False` for the P1B1 demo, to 
+show just the GPR model and optimization.
+
 A P3B1 demo should be available soon.  This will show how the Affinity Propagation clustering 
 is used to identify the distinct local minima (corresponding to the 5 sub-problems from which
 the average loss was constructed).
