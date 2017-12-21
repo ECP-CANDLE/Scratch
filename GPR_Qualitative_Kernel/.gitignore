@@ -1,0 +1,11 @@
+# ignore json run logs and training logs
+**/save/*.json
+**/save/training.log
+# ignore compiled python
+**/*.pyc
+# ignore Spyder project
+**/.spyproject
+**/.DS_Store
+# ignore h5 and png
+**/*.h5
+**/*.png
