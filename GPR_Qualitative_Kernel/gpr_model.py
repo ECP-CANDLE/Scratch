@@ -268,7 +268,7 @@ class GPR_Model(object):
             W = X[columns]
             return gamma*(np.linalg.norm(W, ord=2) - 1.0)**2 + delta*(np.linalg.norm(W, ord=1) - 1)**2
         
-        return lambda X : gpr.predict(X) + sum(factor_penalty(X, columns) for columns in self.factor_columns.values())
+        return lambda X : gpr.predict(X.reshape(1,-1)) + sum(factor_penalty(X, columns) for columns in self.factor_columns.values())
         
     def optimize(self, gamma=1.0, delta=1.0, gpr=None, Xd=None):
         """gpr should be self.gpr_uc, _mc, or _ec..."""
