@@ -43,6 +43,8 @@ for path in paths.values():
 
 import logging
 logging.basicConfig(filename='P1B1.log', level=logging.DEBUG)
+import pprint
+import random
 
 import run_data
 import p1b1_baseline_keras2 as p1b1k2
@@ -75,6 +77,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # if True, parameter dictionaries will be sent to p1b1_baseline_keras2
 run_keras = False
+
+# There are over 1000 points in the test data.  Limit sample a size
+# to reduce running times.  Note that the kernel matrix may be 
+# sample_size * sample_size.
+sample_size = 500
 
 # Location of saved output
 output_dir = os.path.join(file_path, 'save')
@@ -330,7 +337,7 @@ if __name__ == "__main__":
 # =============================================================================
 # To work with a subset of the 1046 points remaining after the above:
 # =============================================================================
-    subset = [i for i in range(len(p1b1_data)) if i % 5 == 0]
+    subset = random.sample(range(len(p1b1_data)), sample_size)
     p1b1_data = p1b1_data.iloc[subset]
 
 
@@ -407,7 +414,7 @@ if __name__ == "__main__":
     print(gpr_model.name_report(gpr_model.gpr_uc))
     
   
-    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=3)
+    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
     opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
                                                   return_data=True)
     
@@ -416,6 +423,8 @@ if __name__ == "__main__":
     # Recommendations are clustered with Affinity Propagation
     # and the 'most-representative' results returned.  The number of
     # clusters is determined automatically.
+    
+    # TODO: sort the returned values by predicted loss
 
     # Use the default model read in from Benchmarks/P1B1
     default_params = DEFAULT_PARAMS
@@ -438,15 +447,17 @@ if __name__ == "__main__":
     # len(run_parsms) is used to generate unique ids of the form run.0.json
     for param_dict in opt_rec:
         run_params.append(param_update(param_dict, default_params,
-                                       len(run_params), "opt_0"))
+                                       len(run_params), "opt"))
         
     # note focus_search calls param_update
     for param_dict in lcb_rec:
-        run_params = focus_search(param_dict, default_params, "lcb_0", run_params,
+        run_params = focus_search(param_dict, default_params, "lcb", run_params,
                                   n_recommend=1, degree=5)
     
+    print("\nThe first few parameter dictionaies:")
     for params in run_params[:3]:
-        print(params)
+        pprint.pprint(params)
+        print("")
 
 # TODO: Fix This!
 # datatype=np.float32 gets keras to run, but can't be serialized to json
@@ -456,13 +467,17 @@ if __name__ == "__main__":
 #        json.dump(run_params, jsonfile)
    
     if run_keras:
+        print("\nSending {} parameter dictionaries to keras.\n".format(len(run_params)))
         for params in run_params:
             try:
                 p1b1k2.run(params)
             except Exception as e:
                 logging.error(repr(e))
                 logging.error("\nKeras run failed for parameters:\n{}".format(params))
+                print("\nKeras run failed for parameters:\n{}".format(params))
     
+    # Results in different subdirectories facilitate comparison
+    # TODO: overload + and __add__ supporting different types of objects
     if run_keras:
         data = run_data.P1B1RunData(output_dir, subdirectory="opt")
         data.add_run_id("*")
