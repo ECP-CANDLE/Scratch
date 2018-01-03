@@ -287,7 +287,7 @@ class GPR_Model(object):
         for i in range(Xd.shape[0]):
             # TODO: pick a float between 0 and 1 for each value
             # rescale using bounds as range, i.e. r * (upper - lower) + lower
-            start_val = Xd.iloc[i].as_matrix().reshape(-1,1)
+            start_val = Xd.iloc[i].as_matrix().reshape(1,-1)
             #start_val = np.array(start_val).reshape(-1, 1)
             #start_val = Xs[yidxmin].reshape(-1,  1)
             # Fit the GPR model
