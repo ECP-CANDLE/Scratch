@@ -14,8 +14,8 @@ except:
     from hypersphere_pure import HyperSphere
     print("HyperSphere: using pure Python version")
 
-#import hypersphere_cython as hs
 
+from functools import reduce
 from math import pi, log, sqrt
 import numpy as np
 # TODO: contribute back to sklearn
