@@ -320,7 +320,7 @@ class GPR_Model(object):
         # select the lowest validation loss from each cluster
         x_rec = pd.concat([x, pd.DataFrame({'cluster_id' : aff.labels_})], axis=1)
         clus_rec = x_rec.groupby('cluster_id')
-        x_rec = x_rec.iloc[clus_rec.idxmin()['gpr_optimum']]
+        x_rec = x_rec.iloc[clus_rec['gpr_optimum'].idxmin()]
         x_rec = x_rec.drop(['gpr_optimum','cluster_id'], axis=1)
         paramdictlist = self.decode_dummies(x_rec, param_set)
         if return_data:
