@@ -384,7 +384,7 @@ class GPR_Model(object):
         #TODO: see if this still works, was: X.reshape(1,-1)
         # n.b. gpr.predict accepts matrix input and returns an array
         # e.g. if X is n * p return an array with shape (p,)        
-        return lambda X : gpr.predict(X)[0] + \
+        return lambda X : gpr.predict(X.reshape(1,-1))[0] + \
             sum(factor_penalty(X, factor.columns) \
                 for factor in self.factor_objects.values())
 #               for columns in self.factor_columns.values())
@@ -410,7 +410,7 @@ class GPR_Model(object):
             #start_val = np.atleast_2d(Xd.iloc[i]).reshape(1,-1)
             start_val = Xd.iloc[i]
             # Fit the GPR model
-            predict = lambda X : gpr.predict(X)[0]
+            predict = lambda X : gpr.predict(X.reshape(1,-1))[0]
             result = sp.optimize.minimize(predict, start_val, method='L-BFGS-B', bounds=bounds)
             # the result will be a mixture of factor values
             # Now penalize points which are not feasible
@@ -418,7 +418,7 @@ class GPR_Model(object):
                 predict = self.predict_penalized(gpr, epsilon, epsilon)
             result = sp.optimize.minimize(predict, result.x, method='L-BFGS-B', bounds=bounds)
             rx = result.x
-            pred = gpr.predict(rx)
+            pred = gpr.predict(rx.reshape(1,-1))
             for col, val in zip(columns, rx):
                 result_data[col].append(val)
             # pred is an ndarray with shape (1,) so unpack it
