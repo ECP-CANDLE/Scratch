@@ -81,11 +81,13 @@ Requires numpy, scipy, scikit-learn, pandas, and optionally, cython.  A standard
 installation will have everything except cython; `conda install cython` should take care of that.
 (If cython is not available, it will use a pure python version.)
 
+Clone Benchmarks from the frameworks branch, install prerequisites such as keras.
 Clone Scratch alongside Benchmarks, or edit paths near the beginning of the demo to match the 
 actual directory structure.
 
 If cython is installed, in the directory containing hypersphere_cython.pyx, run:
 `python setup.py build_ext --inplace`
+If cython is not available, a slower pure Python version will be run.
 
 There is a "Configuration" section near the beginning of each demo.  `run_keras = True` will 
 submit the parameter dictionaries to keras.  This is currently `False` for the P1B1 demo, to 

@@ -21,7 +21,7 @@ validation_loss | runtime_hours | epochs | hrs_per_epoch
 
 #### Setup
 
-Clone Scratch to a directory at the same level as Benchmarks:
+Clone the frameworks branch of Benchmarks, and clone Scratch to a directory at the same level as Benchmarks:
 
 ```
  GitHub

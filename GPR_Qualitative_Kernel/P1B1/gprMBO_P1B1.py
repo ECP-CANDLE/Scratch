@@ -27,7 +27,7 @@ import sys
 # =============================================================================
 # Add paths to Benchmarks to system paths to allow imports
 # =============================================================================
-    
+
 file_path = os.path.dirname(os.path.realpath(__file__))
 
 paths = {"common" : ['..', '..', '..', 'Benchmarks', 'common'],
@@ -67,20 +67,20 @@ import numpy as np
 #import scipy as sp
 #from scipy.stats.distributions import expon
 
-# data are correctly reshaped but warning is present anyway, 
+# data are correctly reshaped but warning is present anyway,
 #so suppress them all (bug in sklearn.optimize reported)
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # =============================================================================
 # CONFIGURATION done here for now
 # =============================================================================
 
 # if True, parameter dictionaries will be sent to p1b1_baseline_keras2
-run_keras = False
+run_keras = True
 
 # There are over 1000 points in the test data.  Limit sample a size
-# to reduce running times.  Note that the kernel matrix may be 
+# to reduce running times.  Note that the kernel matrix may be
 # sample_size * sample_size.
 sample_size = 800
 
@@ -105,23 +105,23 @@ TARGET = 'validation_loss'
 # =============================================================================
 # # see https://cran.r-project.org/web/packages/ParamHelpers/ParamHelpers.pdfmakeNum
 # # the parameter names should match names of the arguments expected by the benchmark
-# 
+#
 # # Current best val_corr: 0.96 for ae, 0.86 for vae
 # # We are more interested in vae results
-# 
+#
 # param.set <- makeParamSet(
 #   # we optimize for ae and vae separately
 #   makeDiscreteParam("model", values=c("ae", "vae")),
-# 
+#
 #   # latent_dim impacts ae more than vae
 #   makeDiscreteParam("latent_dim", values=c(2, 8, 32, 128, 512)),
-# 
+#
 #   # use a subset of 978 landmark features only to speed up training
 #   makeDiscreteParam("use_landmark_genes", values=c(True)),
-# 
+#
 #   # large batch_size only makes sense when warmup_lr is on
 #   makeDiscreteParam("batch_size", values=c(32, 64, 128, 256, 512, 1024)),
-# 
+#
 #   # use consecutive 978-neuron layers to facilitate residual connections
 #   makeDiscreteParam("dense", values=c("2000 600",
 #                                       "978 978",
@@ -129,21 +129,21 @@ TARGET = 'validation_loss'
 # 				      "978 978 978 978",
 # 				      "978 978 978 978 978",
 # 				      "978 978 978 978 978 978")),
-# 
+#
 #   makeDiscreteParam("residual", values=c(True, False)),
-# 
+#
 #   makeDiscreteParam("activation", values=c("relu", "sigmoid", "tanh")),
-# 
+#
 #   makeDiscreteParam("optimizer", values=c("adam", "sgd", "rmsprop")),
-# 
+#
 #   makeNumericParam("learning_rate", lower=0.00001, upper=0.1),
-# 
+#
 #   makeDiscreteParam("reduce_lr", values=c(True, False)),
-# 
+#
 #   makeDiscreteParam("warmup_lr", values=c(True, False)),
-# 
+#
 #   makeNumericParam("drop", lower=0, upper=0.9),
-# 
+#
 #   makeIntegerParam("epochs", lower=100, upper=200),
 # )
 # =============================================================================
@@ -168,13 +168,13 @@ warmup_lr = [0, 1]
 
 # probably add this in param_update... where is it used?
 use_landmark_genes = True
-      
+
 # =============================================================================
 # ParameterGrid used for initial keras runs
 # =============================================================================
 def p1b1_parameter_grid():
     """Utility function to encapsulate ParameterGrid definition"""
-    
+
     gdict = {"activation" : activation,
              "batch_size" : batch_size,
              "dense" : dense,
@@ -188,7 +188,7 @@ def p1b1_parameter_grid():
              "reduce_lr" : reduce_lr,
              "warmup_lr" : warmup_lr
             }
-    
+
     pg = ParameterGrid(gdict)
     return pg
 
@@ -197,13 +197,13 @@ def p1b1_parameter_grid():
 # =============================================================================
 def p1b1_parameter_grid_optimize(num=50, fixed={}):
     """Utility function to encapsulate ParameterGrid definition
-    
+
     num: number of points for numeric
     fixed: dictionary giving discrete values which are constant
     value should be supplied as a list with a single element
     ... consider using np.ogrid"""
-    
-    
+
+
     gdict = {"activation" : activation,
              "batch_size" : batch_size,
              "dense" : dense,
@@ -218,18 +218,18 @@ def p1b1_parameter_grid_optimize(num=50, fixed={}):
              "warmup_lr" : warmup_lr
             }
     gdict.update(fixed)
-    
+
     pg = ParameterGrid(gdict)
     return pg
 
 # =============================================================================
 # ParameterSet used for focus search after model fit
 # =============================================================================
-def p1b1_parameter_set(): 
+def p1b1_parameter_set():
     """Utility function to encapsulate ParameterSet definition"""
-    
+
     ps = prs.ParameterSet()
- 
+
     # batch_size is NumericList to enforce integer validation
     ps["activation"] = prs.DiscreteParameter(activation)
     ps["batch_size"] = prs.NumericListParameter(batch_size)
@@ -244,17 +244,24 @@ def p1b1_parameter_set():
     ps["residual"] = prs.DiscreteParameter(residual)
     ps["reduce_lr"] = prs.DiscreteParameter(reduce_lr)
     ps["warmup_lr"] = prs.DiscreteParameter(warmup_lr)
-    
+
     return ps
 
 # =============================================================================
 # Always call param_update before sending parameter dictionary to keras
 # =============================================================================
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
+<<<<<<< HEAD
     """Last-minute amendations to the parameters.  
     
     Many parameters arguably belong in, but are missing from 
     p1b1_default_model.txt: 
+=======
+    """Last-minute ammendations to the parameters.
+
+    Many parameters arguably belong in, but are missing from
+    p1b1_default_model.txt:
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
         alpha_dropout, logfile, verbose, shuffle, datatype, cp, tb, tsne
         
     (Also datatype requires a Python datatype such as np.float32
@@ -279,14 +286,14 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     run_params['cp'] = run_params.get('cp', False)
     run_params['tb'] = run_params.get('tb', False)
     run_params['tsne'] = run_params.get('tsne', False)
-    
+
     # TODO: fix restrict_model so it works properly
     model = run_params.get('model', False)
     if not model:
         # current hack should have put 'ae' or 'vae' in default_params
         # but just make sure something is there...
         run_params['model'] = default_params.get('model', 'vae')
-    
+
     return run_params
 
 # =============================================================================
@@ -305,31 +312,37 @@ def focus_search(params,
         params = param_update(focus.draw(), default_params, len(run_params), output_subdirectory)
         run_params.append(params)
     return run_params
-                
-                
+
+
 if __name__ == "__main__":
     # parameter grid would be used to generate initial data
     # not currently used because data are read from cached .csv file
     pg = p1b1_parameter_grid()
     ps = p1b1_parameter_set()
-    
+
     print(pg)
     print(ps)
-    
+
     p1b1csv = "P1B1_data.csv"
-    
+
     p1b1_run_data = run_data.P1B1RunData(output_dir, subdirectory="opt")
     p1b1_run_data.from_csv(p1b1csv)
+<<<<<<< HEAD
     #print("Testing .from_csv")
     #print(p1b1_run_data.dataframe.describe())
     
+=======
+    print("Testing .from_csv")
+    print(p1b1_run_data.dataframe.describe())
+
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
     #p1b1_data = pd.read_csv(p1b1csv)
     p1b1_data = p1b1_run_data.dataframe
     valid = p1b1_data.validation_loss.notnull()
     p1b1_data = p1b1_data[valid]
-    
+
     print(p1b1_data.describe())
-       
+
 # =============================================================================
 # After inspecting the data, it seems that the overwhelming majority are < 1
 # but there are some really big ones in there
@@ -387,68 +400,103 @@ if __name__ == "__main__":
              'reduce_lr',
              'model'
              ]
-    
+
 # =============================================================================
 #  SEE NOTE in ParameterSet.R:
 #    Current best val_corr: 0.96 for ae, 0.86 for vae
 #    We are more interested in vae results
 # =============================================================================
-    restrict_model = 'vae' # None or False or 'vae' or 'ae'
+    restrict_model = None # 'vae' # None or False or 'vae' or 'ae'
     if restrict_model in ('ae', 'vae'):
         p1b1_data = p1b1_data[p1b1_data.model == restrict_model]
         factors.remove('model')
+<<<<<<< HEAD
         del ps['model']
     
+=======
+
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
     # try a smaller problem
     #factors = ['dense', 'model', 'warmup_lr', 'reduce_lr']
     assert all(x in data_columns for x in X_columns), "invalid column"
-    
+
     gpr_model = GPR_Model(p1b1_data, X_columns, TARGET, factors)
+<<<<<<< HEAD
     #gpr_model.fit_EC()
     #gpr_model.fit_MC()
     #gpr_model.fit_UC()
     # equivalent to : 
     gpr_model.fit()
     
+=======
+    gpr_model.fit_EC()
+    gpr_model.fit_MC()
+    gpr_model.fit_UC()
+    # equivalent to : gpr_model.fit()
+
+# =============================================================================
+#     print("\nExchangeable Correlations")
+#     report(gpr_model.gpr_ec)
+#     print("\nMultiplicative Correlations")
+#     report(gpr_model.gpr_mc)
+#     print("\nUnrestrictive Correlations")
+#     report(gpr_model.gpr_uc)
+# =============================================================================
+
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
     print("\nExchangeable Correlations")
     print(gpr_model.name_report(gpr_model.gpr_ec))
     print("\nMultiplicative Correlations")
     print(gpr_model.name_report(gpr_model.gpr_mc))
     print("\nUnrestrictive Correlations")
     print(gpr_model.name_report(gpr_model.gpr_uc))
+<<<<<<< HEAD
     
   
     opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
                                                   gamma=0.05,
                                                   delta=0.05,
+=======
+
+
+    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
+    opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
+                                                  gamma=0.1,
+                                                  delta=0.1,
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
                                                   return_data=True)
-    
+
     # optimize_recommend finds all local minima; all points returned
     # could have converged to the same point, and be very close to each other.
     # Recommendations are clustered with Affinity Propagation
     # and the 'most-representative' results returned.  The number of
     # clusters is determined automatically.
+<<<<<<< HEAD
     
     # The returned values are sorted by predicted loss
 
     lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
     
     # lcb_rec 
+=======
+
+    # TODO: sort the returned values by predicted loss
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
 
     # Use the default model read in from Benchmarks/P1B1
     default_params = DEFAULT_PARAMS
     # Read the local default model if changes are made
     #default_params = p1b1.read_config_file("p1b1_default_model.txt")
-    
+
     if restrict_model in ('ae', 'vae'):
         default_params.update({'model' : restrict_model})
-        
+
     # TODO: last-minute additions to default_params could be done here, e.g.
     #default_params['logfile'] = 'logfile.txt'
-    
+
     # randomize draws in the vicinity of LCB points, since the original
     # points have already been evaluated
-    
+
     # send opt and lcb recommendations to different subdirectories
     # to facilitate strategy comparison
 
@@ -457,12 +505,12 @@ if __name__ == "__main__":
     for param_dict in opt_rec:
         run_params.append(param_update(param_dict, default_params,
                                        len(run_params), "opt"))
-        
+
     # note focus_search calls param_update
     for param_dict in lcb_rec:
         run_params = focus_search(param_dict, default_params, "lcb", run_params,
                                   n_recommend=1, degree=5)
-    
+
     print("\nThe first few parameter dictionaies:")
     for params in run_params[:3]:
         pprint.pprint(params)
@@ -474,7 +522,7 @@ if __name__ == "__main__":
 #    import json
 #    with open("p1b1_recommend.json", "w") as jsonfile:
 #        json.dump(run_params, jsonfile)
-   
+
     if run_keras:
         print("\nSending {} parameter dictionaries to keras.\n".format(len(run_params)))
         for params in run_params:
@@ -484,7 +532,7 @@ if __name__ == "__main__":
                 logging.error(repr(e))
                 logging.error("\nKeras run failed for parameters:\n{}".format(params))
                 print("\nKeras run failed for parameters:\n{}".format(params))
-    
+
     # Results in different subdirectories facilitate comparison
     # TODO: overload + and __add__ supporting different types of objects
     if run_keras:
@@ -495,5 +543,4 @@ if __name__ == "__main__":
         data.subdirectory = "lcb"
         data.add_run_id("*")
         print("Results from optimization and lower confidence bound")
-        print(data.dataframe.validation_loss.describe())        
-    
+        print(data.dataframe.validation_loss.describe())

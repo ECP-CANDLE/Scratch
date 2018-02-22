@@ -886,12 +886,16 @@ class GPR_Model_old(object):
             return gamma*(np.linalg.norm(W, ord=2) - 1.0)**2 + \
                 delta*(np.linalg.norm(W, ord=1) - 1)**2
         
+<<<<<<< HEAD
         #TODO: see if this still works, was: X.reshape(1,-1)
         # n.b. gpr.predict accepts matrix input and returns an array
         # e.g. if X is n * p return an array with shape (p,)        
         return lambda X : gpr.predict(X)[0] + \
             sum(factor_penalty(X, columns) \
                 for columns in self.factor_columns.values())
+=======
+        return lambda X : gpr.predict(X.reshape(1,-1))[0] + sum(factor_penalty(X, columns) for columns in self.factor_columns.values())
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
         
     def optimize(self, gamma=1.0, delta=1.0, gpr=None, Xd=None):
         """gpr should be self.gpr_uc, _mc, or _ec..."""
@@ -920,7 +924,7 @@ class GPR_Model_old(object):
                 predict = self.predict_penalized(gpr, epsilon, epsilon)
             result = sp.optimize.minimize(predict, result.x, method='L-BFGS-B', bounds=bounds)
             rx = result.x
-            pred = gpr.predict(result.x)
+            pred = gpr.predict(result.x.reshape(1,-1))
             for col, val in zip(columns, rx):
                 result_data[col].append(val)
             # pred is an ndarray with shape (1,) so unpack it
@@ -948,6 +952,7 @@ class GPR_Model_old(object):
         #x_rec = pd.DataFrame(aff.cluster_centers_, columns=x.columns)
         # select the lowest validation loss from each cluster
         x_rec = pd.concat([x, pd.DataFrame({'cluster_id' : aff.labels_})], axis=1)
+<<<<<<< HEAD
         x_rec.sort_values(by=['cluster_id', 'gpr_optimum'], inplace=True)
         x_rec = x_rec.groupby('cluster_id').first()
         x_rec.sort_values(by=['gpr_optimum'], inplace=True)
@@ -957,6 +962,11 @@ class GPR_Model_old(object):
         x_rec = x.iloc[:max_recommend]
         #x_rec.index = range(len(x_rec))
         #x_rec = x_rec.drop(['gpr_optimum'], axis=1)
+=======
+        clus_rec = x_rec.groupby('cluster_id')
+        x_rec = x_rec.iloc[clus_rec['gpr_optimum'].idxmin()]
+        x_rec = x_rec.drop(['gpr_optimum','cluster_id'], axis=1)
+>>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
         paramdictlist = self.decode_dummies(x_rec, param_set)
         if return_data:
             return paramdictlist, x_rec
