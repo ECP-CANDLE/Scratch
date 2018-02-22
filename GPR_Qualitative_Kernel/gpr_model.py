@@ -30,52 +30,6 @@ class Factor(object):
     def kernel_(self, gpr_model):
         pass
     
-# =============================================================================
-# # TODO: rework generic Factor init
-# class FactorExchangeableCorrelation(Factor):
-#     #def __init__(self, name, columns, values):
-#         # just inherit from super AFAIK
-#                  
-#     def get_kernel(self, theta=0.1):
-#         dim = len(self.columns)
-#         kernel = qk.ExchangeableCorrelation(dim, zeta=theta)
-#         return kernel
-# 
-# class FactorMultiplcativeCorrelation(Factor):
-#     def get_kernel(self, theta=None):
-#         dim = len(self.columns)
-#         kernel = qk.MultiplicativeCorrelation(dim, zeta=theta)
-#         return kernel
-# 
-# class FactorUnrestrictiveCorrelation(Factor):
-#     def get_kernel(self, theta=None):
-#         dim = len(self.columns)
-#         kernel = qk.MultiplicativeCorrelation(dim, zeta=theta)
-#         return kernel
-#     
-# class GPR_with_Factors(GaussianProcessRegressor):
-#     """Adds utility methods for interacting with compound kernels.
-#     
-#     Introspects gpr.kernel_ to find kernels belonging to factors,
-#     extract parameters, correlations, or compute initial values 
-#     
-#     """
-#     def __init__(self, factors, kernel=None, alpha=1e-10,
-#                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
-#                  normalize_y=False, copy_X_train=True, random_state=None):
-#         #TODO: need to build kernel from factors...
-#         # ... factors need to know dataframe, values, columns...
-#         # ... different from typical GPR ... 
-#         if kernel is None:
-#             pass
-#             # TODO: build Tensor([RBF(continuous), ... Factor, ...])
-#         super(GPR_with_Factors, self).__init__(self, kernel=kernel, alpha=alpha,
-#                  optimizer=optimizer, n_restarts_optimizer=n_restarts_optimizer,
-#                  normalize_y=normalize_y, copy_X_train=copy_X_train,
-#                  random_state=random_state)
-#       
-# =============================================================================
-
 class GPR_Model(object):
     """Given a dataframe, construct views for X, Y and dummy-coded factors.
     
