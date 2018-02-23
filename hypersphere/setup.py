@@ -8,8 +8,8 @@ import numpy
 
 ext_modules = [
     Extension(
-        "hypersphere0",
-        ["hypersphere0.pyx"],
+        "hypersphere_parallel",
+        ["hypersphere_parallel.pyx"],
         include_dirs=[numpy.get_include()],
         extra_compile_args=['-fopenmp'],
         extra_link_args=['-fopenmp'],
@@ -17,7 +17,7 @@ ext_modules = [
 ]
 
 setup(
-    name="hypersphere-parallel",
+    name="hypersphere_parallel",
     ext_modules = cythonize(ext_modules,
                             annotate=True,
                         )
