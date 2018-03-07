@@ -251,24 +251,18 @@ def p1b1_parameter_set():
 # Always call param_update before sending parameter dictionary to keras
 # =============================================================================
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
-<<<<<<< HEAD
     """Last-minute amendations to the parameters.  
     
     Many parameters arguably belong in, but are missing from 
     p1b1_default_model.txt: 
-=======
-    """Last-minute ammendations to the parameters.
 
-    Many parameters arguably belong in, but are missing from
-    p1b1_default_model.txt:
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
         alpha_dropout, logfile, verbose, shuffle, datatype, cp, tb, tsne
         
-    (Also datatype requires a Python datatype such as np.float32
+    Also: datatype requires a Python datatype such as np.float32
     Text representation of the datatype such as 'f32' would be replaced in code
-    if called from the command line with arguments.)
+    if called from the command line with arguments.
 
-    ChainMap in Python 3 would be a good replacement"""
+    (ChainMap in Python 3 would be a good replacement.)"""
     run_params = default_params.copy()
     run_params.update(params)
     run_params['save'] = 'save/{}'.format(output_subdirectory)
@@ -327,21 +321,16 @@ if __name__ == "__main__":
 
     p1b1_run_data = run_data.P1B1RunData(output_dir, subdirectory="opt")
     p1b1_run_data.from_csv(p1b1csv)
-<<<<<<< HEAD
+
     #print("Testing .from_csv")
     #print(p1b1_run_data.dataframe.describe())
     
-=======
-    print("Testing .from_csv")
-    print(p1b1_run_data.dataframe.describe())
-
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
     #p1b1_data = pd.read_csv(p1b1csv)
     p1b1_data = p1b1_run_data.dataframe
     valid = p1b1_data.validation_loss.notnull()
     p1b1_data = p1b1_data[valid]
 
-    print(p1b1_data.describe())
+    #print(p1b1_data.describe())
 
 # =============================================================================
 # After inspecting the data, it seems that the overwhelming majority are < 1
@@ -362,35 +351,14 @@ if __name__ == "__main__":
 
     p1b1_data = p1b1_data.iloc[subset]
 
-
-    data_columns = [
-             'drop',
-             'optimizer',
-             'warmup_lr',
-             'activation',
-             'residual',
-             'batch_size',
-             'epochs',
-             'dense',
-             'latent_dim',
-             'reduce_lr',
-             'model',
-             'learning_rate',
-             'run_id',
-             'training_loss',
-             'validation_loss',
-             'runtime_hours',
-             'run_id.1',
-             'training_loss.1',
-             'validation_loss.1',
-             'runtime_hours.1'
-             ]
+    # continuous variables to be used in the model:
     X_columns = [
              'drop',
              'batch_size',
              'epochs',
              'learning_rate'
              ]
+    # categorical variables, to be dummy-coded for use in the model
     factors =[
              'optimizer',
              'warmup_lr',
@@ -410,60 +378,14 @@ if __name__ == "__main__":
     if restrict_model in ('ae', 'vae'):
         p1b1_data = p1b1_data[p1b1_data.model == restrict_model]
         factors.remove('model')
-<<<<<<< HEAD
         del ps['model']
-    
-=======
 
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
-    # try a smaller problem
-    #factors = ['dense', 'model', 'warmup_lr', 'reduce_lr']
     assert all(x in data_columns for x in X_columns), "invalid column"
 
-    gpr_model = GPR_Model(p1b1_data, X_columns, TARGET, factors)
-<<<<<<< HEAD
-    #gpr_model.fit_EC()
-    #gpr_model.fit_MC()
-    #gpr_model.fit_UC()
-    # equivalent to : 
+    gpr_model = GPR_Model(p1b1_data, X_columns, TARGET, factors) 
     gpr_model.fit()
-    
-=======
-    gpr_model.fit_EC()
-    gpr_model.fit_MC()
-    gpr_model.fit_UC()
-    # equivalent to : gpr_model.fit()
-
-# =============================================================================
-#     print("\nExchangeable Correlations")
-#     report(gpr_model.gpr_ec)
-#     print("\nMultiplicative Correlations")
-#     report(gpr_model.gpr_mc)
-#     print("\nUnrestrictive Correlations")
-#     report(gpr_model.gpr_uc)
-# =============================================================================
-
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
-    print("\nExchangeable Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_ec))
-    print("\nMultiplicative Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_mc))
-    print("\nUnrestrictive Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_uc))
-<<<<<<< HEAD
-    
   
     opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
-                                                  gamma=0.05,
-                                                  delta=0.05,
-=======
-
-
-    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
-    opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
-                                                  gamma=0.1,
-                                                  delta=0.1,
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
                                                   return_data=True)
 
     # optimize_recommend finds all local minima; all points returned
@@ -471,17 +393,11 @@ if __name__ == "__main__":
     # Recommendations are clustered with Affinity Propagation
     # and the 'most-representative' results returned.  The number of
     # clusters is determined automatically.
-<<<<<<< HEAD
     
     # The returned values are sorted by predicted loss
 
     lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
     
-    # lcb_rec 
-=======
-
-    # TODO: sort the returned values by predicted loss
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
 
     # Use the default model read in from Benchmarks/P1B1
     default_params = DEFAULT_PARAMS

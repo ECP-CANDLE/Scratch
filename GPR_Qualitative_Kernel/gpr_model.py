@@ -840,16 +840,13 @@ class GPR_Model_old(object):
             return gamma*(np.linalg.norm(W, ord=2) - 1.0)**2 + \
                 delta*(np.linalg.norm(W, ord=1) - 1)**2
         
-<<<<<<< HEAD
-        #TODO: see if this still works, was: X.reshape(1,-1)
+
         # n.b. gpr.predict accepts matrix input and returns an array
         # e.g. if X is n * p return an array with shape (p,)        
         return lambda X : gpr.predict(X)[0] + \
             sum(factor_penalty(X, columns) \
                 for columns in self.factor_columns.values())
-=======
-        return lambda X : gpr.predict(X.reshape(1,-1))[0] + sum(factor_penalty(X, columns) for columns in self.factor_columns.values())
->>>>>>> 28981818020bd81b77cd336914a79d8ef72a93f0
+        return lambda X : gpr.predict(X.reshape(1,-1))[0] + sum(factor_penalty(X.reshape(1,-1), columns) for columns in self.factor_columns.values())
         
     def optimize(self, gamma=1.0, delta=1.0, gpr=None, Xd=None):
         """gpr should be self.gpr_uc, _mc, or _ec..."""
