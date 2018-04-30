@@ -11,13 +11,13 @@
 
 #include <mpi.h>
 
-int rank, size;
+static int rank, size;
 
 #define buffer_size 1024
 char buffer[buffer_size];
 
-const char* GET  = "GET";
-const char* STOP = "STOP";
+static const char* GET  = "GET";
+static const char* STOP = "STOP";
 
 static void check(bool condition, const char* format, ...);
 static void fail(const char* format, va_list va);
@@ -65,7 +65,7 @@ master(int n, int workers)
   for (int i = 0; i < n; i++)
   {
     MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-    strcpy(buffer, "bash -c exit");
+    strcpy(buffer, "bash -c 'exit 0'");
     int worker = status.MPI_SOURCE;
     MPI_Send(buffer, buffer_size, MPI_BYTE, worker, 0, MPI_COMM_WORLD);
   }
@@ -90,10 +90,12 @@ worker()
     MPI_Recv(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD, &status);
     if (strcmp(buffer, STOP) == 0)
       break;
-    system(buffer);
+    int rc = system(buffer);
+    if (rc != 0)
+      printf("command failed on rank: %i : %s\n", rank, buffer);
     count++;
   }
-  printf("worker: %i\n", count);
+  printf("worker rank: %i : tasks: %i\n", rank, count);
 }
 
 static void
