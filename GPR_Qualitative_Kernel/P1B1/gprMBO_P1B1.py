@@ -52,7 +52,7 @@ import p1b1
 #import run_data
 import parameter_set as prs
 #import qualitative_kernels as qk
-from gpr_model import GPR_Model, report
+from gpr_model import GPR_Model
 
 
 
@@ -60,6 +60,7 @@ from gpr_model import GPR_Model, report
 #from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 #from kernels import RBF, ConstantKernel
 from sklearn.model_selection import ParameterGrid  #, ParameterSampler
+from sklearn.model_selection import train_test_split
 
 import pandas as pd
 import numpy as np
@@ -81,7 +82,7 @@ run_keras = True
 # There are over 1000 points in the test data.  Limit sample a size
 # to reduce running times.  Note that the kernel matrix may be
 # sample_size * sample_size.
-sample_size = 500
+sample_size = 800
 
 # Location of saved output
 output_dir = os.path.join(file_path, 'save')
@@ -234,6 +235,7 @@ def p1b1_parameter_set():
     ps["batch_size"] = prs.NumericListParameter(batch_size)
     ps["dense"] = prs.DiscreteParameter(dense)
     ps["drop"] = prs.NumericParameter(0.0, 0.9)
+    # limit maximum number of epcohs for demonstration purposes
     ps["epochs"] = prs.IntegerParameter(10, 20) #100, 200)
     ps["latent_dim"] = prs.NumericListParameter(latent_dim)
     ps["learning_rate"] = prs.NumericParameter(0.00001, 0.1)
@@ -249,13 +251,18 @@ def p1b1_parameter_set():
 # Always call param_update before sending parameter dictionary to keras
 # =============================================================================
 def param_update(params, default_params, run_id, output_subdirectory='exp'):
-    """Last-minute ammendations to the parameters.
+    """Last-minute amendations to the parameters.  
+    
+    Many parameters arguably belong in, but are missing from 
+    p1b1_default_model.txt: 
 
-    Many parameters arguably belong in, but are missing from
-    p1b1_default_model.txt:
         alpha_dropout, logfile, verbose, shuffle, datatype, cp, tb, tsne
+        
+    Also: datatype requires a Python datatype such as np.float32
+    Text representation of the datatype such as 'f32' would be replaced in code
+    if called from the command line with arguments.
 
-    ChainMap in Python 3 would be a good replacement"""
+    (ChainMap in Python 3 would be a good replacement.)"""
     run_params = default_params.copy()
     run_params.update(params)
     run_params['save'] = 'save/{}'.format(output_subdirectory)
@@ -284,7 +291,7 @@ def param_update(params, default_params, run_id, output_subdirectory='exp'):
     return run_params
 
 # =============================================================================
-# Python implementation of Focus algorithm from mlrMBO
+# Utility function wraps Python implementation of Focus algorithm from mlrMBO
 # =============================================================================
 def focus_search(params,
                  default_params,
@@ -314,15 +321,16 @@ if __name__ == "__main__":
 
     p1b1_run_data = run_data.P1B1RunData(output_dir, subdirectory="opt")
     p1b1_run_data.from_csv(p1b1csv)
-    print("Testing .from_csv")
-    print(p1b1_run_data.dataframe.describe())
 
+    #print("Testing .from_csv")
+    #print(p1b1_run_data.dataframe.describe())
+    
     #p1b1_data = pd.read_csv(p1b1csv)
     p1b1_data = p1b1_run_data.dataframe
     valid = p1b1_data.validation_loss.notnull()
     p1b1_data = p1b1_data[valid]
 
-    print(p1b1_data.describe())
+    #print(p1b1_data.describe())
 
 # =============================================================================
 # After inspecting the data, it seems that the overwhelming majority are < 1
@@ -338,37 +346,19 @@ if __name__ == "__main__":
 # To work with a subset of the 1046 points remaining after the above:
 # =============================================================================
     subset = random.sample(range(len(p1b1_data)), sample_size)
+    # TODO: this needs to move into gpr_model, after the dummy coding 
+    #X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=sample_size, random_state=42)
+
     p1b1_data = p1b1_data.iloc[subset]
 
-
-    data_columns = [
-             'drop',
-             'optimizer',
-             'warmup_lr',
-             'activation',
-             'residual',
-             'batch_size',
-             'epochs',
-             'dense',
-             'latent_dim',
-             'reduce_lr',
-             'model',
-             'learning_rate',
-             'run_id',
-             'training_loss',
-             'validation_loss',
-             'runtime_hours',
-             'run_id.1',
-             'training_loss.1',
-             'validation_loss.1',
-             'runtime_hours.1'
-             ]
+    # continuous variables to be used in the model:
     X_columns = [
              'drop',
              'batch_size',
              'epochs',
              'learning_rate'
              ]
+    # categorical variables, to be dummy-coded for use in the model
     factors =[
              'optimizer',
              'warmup_lr',
@@ -388,38 +378,14 @@ if __name__ == "__main__":
     if restrict_model in ('ae', 'vae'):
         p1b1_data = p1b1_data[p1b1_data.model == restrict_model]
         factors.remove('model')
+        del ps['model']
 
-    # try a smaller problem
-    #factors = ['dense', 'model', 'warmup_lr', 'reduce_lr']
     assert all(x in data_columns for x in X_columns), "invalid column"
 
-    gpr_model = GPR_Model(p1b1_data, X_columns, TARGET, factors)
-    gpr_model.fit_EC()
-    gpr_model.fit_MC()
-    gpr_model.fit_UC()
-    # equivalent to : gpr_model.fit()
-
-# =============================================================================
-#     print("\nExchangeable Correlations")
-#     report(gpr_model.gpr_ec)
-#     print("\nMultiplicative Correlations")
-#     report(gpr_model.gpr_mc)
-#     print("\nUnrestrictive Correlations")
-#     report(gpr_model.gpr_uc)
-# =============================================================================
-
-    print("\nExchangeable Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_ec))
-    print("\nMultiplicative Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_mc))
-    print("\nUnrestrictive Correlations")
-    print(gpr_model.name_report(gpr_model.gpr_uc))
-
-
-    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
+    gpr_model = GPR_Model(p1b1_data, X_columns, TARGET, factors) 
+    gpr_model.fit()
+  
     opt_rec, x_rec = gpr_model.optimize_recommend(param_set=ps,
-                                                  gamma=0.1,
-                                                  delta=0.1,
                                                   return_data=True)
 
     # optimize_recommend finds all local minima; all points returned
@@ -427,8 +393,11 @@ if __name__ == "__main__":
     # Recommendations are clustered with Affinity Propagation
     # and the 'most-representative' results returned.  The number of
     # clusters is determined automatically.
+    
+    # The returned values are sorted by predicted loss
 
-    # TODO: sort the returned values by predicted loss
+    lcb_rec = gpr_model.LCB_recommend(param_set=ps, max_recommend=15)
+    
 
     # Use the default model read in from Benchmarks/P1B1
     default_params = DEFAULT_PARAMS

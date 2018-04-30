@@ -168,7 +168,7 @@ grid = {"activation" : activation,
 # =============================================================================
 param_grid = ParameterGrid(grid)
 print(len(param_grid))
-75600
+#75600
 
 def sample_iterator(param_grid, k):
     """ Draw a sample of size k from the grid.  If k exceeds the number
@@ -201,11 +201,14 @@ boundary = [{"epochs": [5, 500],
 param_grid = ParameterGrid(boundary)
 
 run_params = []
+
+# Draw parameter values at random, but systmeatically overwrite some
+# values to ensure that 
+# replace the continuous values with points from the boundary hypercube,
+# then each of the discrete parameter values
 for boundary_params in param_grid:
     # get a complete random set of parameters
     p = ps.draw()
-    # replace the continuous values with points from the boundary hypercube,
-    # then each of the discrete parameter values
     p.update(boundary_params)
     p = param_update(p, DEFAULT_PARAMS, len(run_params),
                      subdirectory='experiment')
@@ -234,7 +237,7 @@ for params in run_params[:MAX_DEMO]:
                 logging.error("\nKeras run failed for parameters:\n{}".format(params))
                 print("\nKeras run failed for parameters:\n{}".format(params))
        
-subdirectory="experiment"
+subdirectory="experiment_0"
 nt3_data = run_data.NT3RunData(output_dir, subdirectory)
 nt3_data.add_run_id("*")
 df = nt3_data.dataframe
@@ -255,7 +258,7 @@ print(df.describe())
 # =============================================================================
 
 # =============================================================================
-#  fit the Gaussian Procww Regression model
+#  fit the Gaussian Process Regression model
 # =============================================================================
 
 subdirectory="experiment_1"

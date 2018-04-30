@@ -32,6 +32,9 @@ class ParameterSet(object):
     def __getitem__(self, key):
         return self._parameters[key]
     
+    def __delitem__(self, key):
+        del self._parameters[key]
+    
     def keys(self):
         return self._parameters.keys()
     
