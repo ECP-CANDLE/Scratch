@@ -14,7 +14,7 @@
 #define MODE_TCL_EXEC   2 // Use Tcl exec
 #define MODE_TCL_SYSTEM 3 // Use Tcl extension for system()
 
-#if MODE == 1
+#if MODE != MODE_VANILLA
 #include <tcl.h>
 #endif
 
@@ -36,6 +36,8 @@ static void worker(void);
 
 static void tcl_start(const char* program);
 
+Tcl_Interp* interp = NULL;
+
 int
 main(int argc, char* argv[])
 {
@@ -56,14 +58,14 @@ main(int argc, char* argv[])
 
   if (rank == 0)
   {
-    printf("MODE: %i\n", MODE);
+    printf("MODE:  %i\n", MODE);
     printf("SIZE:  %i\n", size);
     printf("TASKS: %i\n", n);
   }
   int workers = size-1;
-  
+
   tcl_start(argv[0]);
-  
+
   if (rank == 0)
     master(n, workers);
   else
@@ -81,13 +83,13 @@ void
 master(int n, int workers)
 {
   check(workers > 0, "No workers!");
-  
+
   MPI_Status status;
   for (int i = 0; i < n; i++)
   {
     MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE,
              0, MPI_COMM_WORLD, &status);
-    strcpy(buffer, "bash -c 'exit 0'");
+    strcpy(buffer, "bash -c \"echo hi\""); //  ; exit 0
     int worker = status.MPI_SOURCE;
     MPI_Send(buffer, buffer_size, MPI_BYTE, worker,
              0, MPI_COMM_WORLD);
@@ -103,6 +105,8 @@ master(int n, int workers)
   }
 }
 
+static int execute(const char* command);
+
 void
 worker()
 {
@@ -116,7 +120,7 @@ worker()
              &status);
     if (strcmp(buffer, STOP) == 0)
       break;
-    int rc = system(buffer);
+    int rc = execute(buffer);
     if (rc != 0)
       printf("command failed on rank: %i : %s\n", rank, buffer);
     count++;
@@ -155,9 +159,26 @@ void tcl_start(const char* program)
 #else
 {
   Tcl_FindExecutable(program);
-  Tcl_Interp* interp = Tcl_CreateInterp();
+  interp = Tcl_CreateInterp();
   int rc = Tcl_Init(interp);
   check(rc == TCL_OK, "Tcl_Init failed!");
+}
+#endif
+
+static int
+execute(const char* command)
+#if MODE == MODE_VANILLA || MODE == MODE_TCL_LINK
+{
+  return system(command);
+}
+#elif MODE == MODE_TCL_EXEC
+{
+  char script[buffer_size];
+  sprintf(script, "exec %s", command);
+  int rc = Tcl_Eval(interp, script);
+  if (rc != TCL_OK)
+    return EXIT_FAILURE;
+  return EXIT_SUCCESS;
 }
 #endif
 

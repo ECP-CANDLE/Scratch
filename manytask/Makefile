@@ -1,11 +1,14 @@
 
 # MODE:
-# 0 = vanilla, no Tcl
-# 1 = just Tcl linkage
-# 2 = Tcl exec
-# 3 = Tcl -> system()
 
-CFLAGS = -DMODE=1
+MODE_VANILLA    = 0 # No Tcl
+MODE_TCL_LINK   = 1 # Link/init but nothing else
+MODE_TCL_EXEC   = 2 # Use Tcl exec
+MODE_TCL_SYSTEM = 3 # Use Tcl extension for system()
+
+MODE = MODE_TCL_EXEC
+
+CFLAGS = -DMODE=$(MODE)
 
 TCL = ${HOME}/Public/sfw/x86_64/tcl-8.6.6-global-gcc-4.8.1
 
