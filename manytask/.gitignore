@@ -1,1 +1,7 @@
 *.x
+*.o
+out*.txt
+*.cobaltlog
+*.error
+*.output
+
