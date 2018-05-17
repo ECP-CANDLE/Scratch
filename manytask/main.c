@@ -89,7 +89,7 @@ master(int n, int workers)
   {
     MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE,
              0, MPI_COMM_WORLD, &status);
-    strcpy(buffer, "bash -c \"echo hi\""); //  ; exit 0
+    strcpy(buffer, "bash -c \"exit 0\"");
     int worker = status.MPI_SOURCE;
     MPI_Send(buffer, buffer_size, MPI_BYTE, worker,
              0, MPI_COMM_WORLD);
@@ -126,28 +126,6 @@ worker()
     count++;
   }
   // printf("worker rank: %i : tasks: %i\n", rank, count);
-}
-
-static void
-check(bool condition, const char* format, ...)
-{
-  if (condition) return;
-
-  va_list va;
-  va_start(va, format);
-  fail(format, va);
-  va_end(va);
-}
-
-static void
-fail(const char* format, va_list va)
-{
-  if (rank == 0)
-  {
-    vprintf(format, va);
-    printf("\n");
-  }
-  exit(EXIT_FAILURE);
 }
 
 static
@@ -192,6 +170,28 @@ void tcl_finalize()
   Tcl_Finalize();
 }
 #endif
+
+static void
+check(bool condition, const char* format, ...)
+{
+  if (condition) return;
+
+  va_list va;
+  va_start(va, format);
+  fail(format, va);
+  va_end(va);
+}
+
+static void
+fail(const char* format, va_list va)
+{
+  if (rank == 0)
+  {
+    vprintf(format, va);
+    printf("\n");
+  }
+  exit(EXIT_FAILURE);
+}
 
 #if 0
 const int buffer_size = 1024;
