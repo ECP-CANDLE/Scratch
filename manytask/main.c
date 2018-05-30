@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MODE_VANILLA    0 // No Tcl
 #define MODE_TCL_LINK   1 // Link/init but nothing else
@@ -31,12 +32,22 @@ static const char* STOP = "STOP";
 static void check(bool condition, const char* format, ...);
 static void fail(const char* format, va_list va);
 
-static void master(int n, int workers);
+static void master(int workers);
 static void worker(void);
 
 static void tcl_start(const char* program);
+static void tcl_finalize(void);
 
+#if MODE != MODE_VANILLA
 Tcl_Interp* interp = NULL;
+#endif
+
+typedef enum { INPUT_UNKNOWN, INPUT_COUNT, INPUT_FILE } input_type;
+static void parse_args(int argc, char** args);
+static void report_settings(int size);
+
+static int   task_count = -1;
+static char* task_file = NULL;
 
 int
 main(int argc, char* argv[])
@@ -48,26 +59,18 @@ main(int argc, char* argv[])
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  check(argc == 2, "Requires task count!");
-
-  int n;
-  int c = sscanf(argv[1], "%i", &n);
-  check(c == 1, "Could not parse as integer: %s", argv[1]);
-
   memset(buffer, 0, buffer_size);
 
   if (rank == 0)
   {
-    printf("MODE:  %i\n", MODE);
-    printf("SIZE:  %i\n", size);
-    printf("TASKS: %i\n", n);
+    parse_args(argc, argv);
+    report_settings(size);
   }
+
   int workers = size-1;
-
   tcl_start(argv[0]);
-
   if (rank == 0)
-    master(n, workers);
+    master(workers);
   else
     worker();
 
@@ -75,25 +78,64 @@ main(int argc, char* argv[])
   if (rank == 0)
     printf("TIME: %0.3f\n", stop-start);
 
+  tcl_finalize();
   MPI_Finalize();
   return 0;
 }
 
-void
-master(int n, int workers)
+static void
+parse_args(int argc, char** args)
+{
+  input_type input = INPUT_UNKNOWN;
+  int opt;
+  while ((opt = getopt(argc, args, "f:n:")) != -1)
+  {
+    switch (opt)
+    {
+      case 'f':
+        check(input == INPUT_UNKNOWN, "provide only -f or -n");
+        input = INPUT_FILE;
+        task_file = optarg;
+        break;
+      case 'n':
+        check(input == INPUT_UNKNOWN, "provide only -f or -n");
+        input = INPUT_COUNT;
+        int c = sscanf(optarg, "%i", &task_count);
+        check(c == 1, "Could not parse as integer: %s", optarg);
+        break;
+    }
+  }
+  check(input != INPUT_UNKNOWN, "provide -f <file> or -n <count>");
+}
+
+static void report_settings(int size)
+{
+  if (rank == 0)
+  {
+    printf("MODE:  %i\n", MODE);
+    printf("SIZE:  %i\n", size);
+    if (task_file == NULL)
+      printf("TASK COUNT: %i\n", task_count);
+    else
+      printf("TASK FILE: %s\n", task_file);
+  }
+}
+
+static void distribute_from_count(void);
+static void distribute_from_file(void);
+
+static void
+master(int workers)
 {
   check(workers > 0, "No workers!");
 
   MPI_Status status;
-  for (int i = 0; i < n; i++)
-  {
-    MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE,
-             0, MPI_COMM_WORLD, &status);
-    strcpy(buffer, "bash -c \"exit 0\"");
-    int worker = status.MPI_SOURCE;
-    MPI_Send(buffer, buffer_size, MPI_BYTE, worker,
-             0, MPI_COMM_WORLD);
-  }
+
+  if (task_file != NULL)
+    distribute_from_file();
+  else
+    distribute_from_count();
+
   for (int i = 0; i < workers; i++)
   {
     MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE,
@@ -105,9 +147,46 @@ master(int n, int workers)
   }
 }
 
+static void distribute_string(const char* task);
+static char task[buffer_size];
+
+static void
+distribute_from_file()
+{
+  FILE* fp = fopen(task_file, "r");
+  check(fp != NULL, "could not read: %s", task_file);
+  while (fgets(task, buffer_size, fp) != NULL)
+  {
+    distribute_string(&task[0]);
+  }
+  fclose(fp);
+}
+
+static void
+distribute_from_count()
+{
+  strcpy(task, "bash -c \"exit 0\"");
+  for (int i = 0; i < task_count; i++)
+  {
+    distribute_string(&task[0]);
+  }
+}
+
+static void
+distribute_string(const char* task)
+{
+  MPI_Status status;
+  MPI_Recv(buffer, buffer_size, MPI_BYTE, MPI_ANY_SOURCE,
+           0, MPI_COMM_WORLD, &status);
+
+  int worker = status.MPI_SOURCE;
+  int length = strlen(task)+1;
+  MPI_Send(task, length, MPI_BYTE, worker, 0, MPI_COMM_WORLD);
+}
+
 static int execute(const char* command);
 
-void
+static void
 worker()
 {
   int count = 0;
@@ -192,6 +271,8 @@ fail(const char* format, va_list va)
   }
   exit(EXIT_FAILURE);
 }
+
+// UNUSED STUFF FOLLOWS
 
 #if 0
 const int buffer_size = 1024;
