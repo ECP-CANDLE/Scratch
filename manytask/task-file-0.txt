@@ -1,0 +1,3 @@
+echo hi
+sleep 1
+echo bye

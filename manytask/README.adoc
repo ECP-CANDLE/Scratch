@@ -1,0 +1,19 @@
+
+== Build
+
+. Edit Makefile
+.. Set MODE
+.. If MODE is not MODE_VANILLA, set the Tcl location
+. Build
++
+----
+$ make CC=mpicc
+----
++
+assuming you are using the normal mpicc.
+
+== Run
+
+----
+$ mpiexec -n 4 ./manytask -f task-file-0.txt
+----
