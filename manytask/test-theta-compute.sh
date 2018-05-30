@@ -9,7 +9,7 @@ fi
 
 export NODES=$1
 export TASKS=$2
-WALLTIME=00:01:00
+WALLTIME=00:30:00
 
 DATE=$( date "+%Y-%m-%d_%H:%M:%S" )
 OUTPUT=out-$DATE.txt
@@ -21,13 +21,18 @@ OUTPUT=out-$DATE.txt
 chmod u+x run.sh
 
 # debug-cache-quad
+QUEUE=default
+# QUEUE=debug-cache-quad
+
+MAIL_ARG="--notify woz@anl.gov"
 
 JOB=$( qsub --project   CSC249ADOA01 \
-            --queue     default \
+            --queue     $QUEUE \
             --nodecount $NODES \
             --time      $WALLTIME \
             --output    $OUTPUT \
             --error     $OUTPUT \
+            $MAIL_ARG \
             run.sh )
 
 echo JOB=$JOB
