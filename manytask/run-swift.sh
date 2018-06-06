@@ -1,6 +1,9 @@
 #!/bin/bash
 
-PATH=/home/wozniak/sfw/theta/swift-t-mt/stc/bin:$PATH
+export PROJECT=ecp-testbed-01
+
+# PATH=/home/wozniak/sfw/theta/swift-t-mt/stc/bin:$PATH
+PATH=/projects/Candle_ECP/swift/2018-06-05/stc/bin:$PATH
 
 which swift-t
 
