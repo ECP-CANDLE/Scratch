@@ -11,6 +11,13 @@ module swap PrgEnv-intel PrgEnv-gnu
 # module list
 # exit
 
+export QUEUE=${QUEUE:-debug-flat-quad}
+
+export TURBINE_APP_RETRIES=3
+
 export TURBINE_LOG=1
 set -x
-swift-t -m theta -t w -n $PROCS -e LD_LIBRARY_PATH=$LD_LIBRARY_PATH $*
+swift-t -m theta -t w -n $PROCS \
+        -e LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+        -e TURBINE_APP_RETRIES \
+        $*
