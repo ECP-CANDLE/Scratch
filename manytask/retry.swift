@@ -4,12 +4,16 @@ import sys;
 n = argv("n");
 N = string2int(n);
 
-app bash(int i)
+app (void v) bash(int i)
 {
-  "false" ;
+  // "echo" "HELLO" ;
+  // "false" ;
+  "/home/wozniak/proj/Scratch/manytask/child.x" 0.8 ;
 }
 
-foreach i in [0:N-1]
-{
-  bash(i);
-}
+// foreach i in [0:N-1]
+// {
+//   bash(i);
+// }
+
+bash(0) => trace("OK");
