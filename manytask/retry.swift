@@ -8,7 +8,7 @@ app (void v) bash(int i)
 {
   // "echo" "HELLO" ;
   // "false" ;
-  "/home/wozniak/proj/Scratch/manytask/child.x" 0.8 ;
+  "/home/wozniak/proj/Scratch/manytask/child.x" 0.7 ;
 }
 
 // foreach i in [0:N-1]

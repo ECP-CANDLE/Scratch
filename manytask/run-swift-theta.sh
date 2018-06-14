@@ -2,7 +2,8 @@
 set -eu
 
 # PATH=/home/wozniak/sfw/theta/swift-t-mt/stc/bin:$PATH
-PATH=/projects/Candle_ECP/swift/2018-06-05/stc/bin:$PATH
+# PATH=/projects/Candle_ECP/swift/2018-06-05/stc/bin:$PATH
+PATH=/projects/Candle_ECP/swift/2018-06-14/stc/bin:$PATH
 
 which swift-t
 
@@ -19,5 +20,5 @@ export TURBINE_LOG=1
 set -x
 swift-t -m theta -t w -n $PROCS \
         -e LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
-        -e TURBINE_APP_RETRIES=3 \
+        -e TURBINE_APP_RETRIES_REPUT=3 \
         $*
