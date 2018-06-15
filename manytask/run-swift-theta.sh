@@ -18,7 +18,10 @@ export QUEUE=${QUEUE:-debug-flat-quad}
 export TURBINE_LOG=1
 
 set -x
-swift-t -m theta -t w -n $PROCS \
+swift-t -m theta \
+        -n $PROCS \
+        -t w \
         -e LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
         -e TURBINE_APP_RETRIES_REPUT=3 \
+        -e TURBINE_LOG_RANKS=1 \
         $*
