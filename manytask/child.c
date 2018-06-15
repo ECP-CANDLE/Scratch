@@ -9,13 +9,21 @@
 #include <unistd.h>
 
 static double rand_double(void);
-void crash(char* fmt, ...);
+static void crash(char* fmt, ...);
 
+/**
+    This program accepts:
+    1) a chance to kill itself with SIGHUP
+    2) some characters to echo to stdout
+    The self-kill tests Swift/T's task reput feature.
+    The characters are useful to test the string processing in Swift/T's
+    task reput feature.  Quotes, curly braces, etc. could cause problems.
+*/
 int
 main(int argc, char* argv[])
 {
-  if (argc != 2)
-    crash("requires 1 argument: chance to self-kill");
+  if (argc != 3)
+    crash("requires 2 arguments: <chance to self-kill> <characters>");
 
   pid_t self = getpid();
   srand(self);
@@ -26,6 +34,7 @@ main(int argc, char* argv[])
   double chance = strtod(argv[1], &check);
   if (check == argv[1] || errno == ERANGE)
     crash("error parsing argument as double: '%s'", argv[1]);
+  char* text = argv[2];
 
   sleep(1);
   if (rand_double() < chance)
@@ -35,6 +44,8 @@ main(int argc, char* argv[])
     sleep(1);
     printf("How am I alive?\n");
   }
+
+  printf("text: %s\n", text);
 
   return 0;
 }
