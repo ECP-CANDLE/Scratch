@@ -14,7 +14,7 @@ foreach i in [0:N-1]
     system1("/bin/bash /home/wozniak/proj/Scratch/manytask/task.sh " + i);
   if (rc == 0)
   {
-    printf(output);
+    printf("output: " + output);
   }
   else
   {
