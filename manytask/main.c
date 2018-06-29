@@ -75,6 +75,7 @@ main(int argc, char* argv[])
   else
     worker();
 
+  MPI_Barrier(MPI_COMM_WORLD);
   double stop = MPI_Wtime();
   if (rank == 0)
     printf("TIME: %0.3f\n", stop-start);
@@ -166,7 +167,7 @@ distribute_from_file()
 static void
 distribute_from_count()
 {
-  strcpy(task, "bash -c exit");
+  strcpy(task, "bash2 -c exitx");
   for (int i = 0; i < task_count; i++)
   {
     distribute_string(&task[0]);
@@ -209,6 +210,9 @@ worker()
   // printf("worker rank: %i : tasks: %i\n", rank, count);
 }
 
+static int do_fork_cmd(ClientData cdata, Tcl_Interp *interp,
+                       int objc, Tcl_Obj *const objv[]);
+
 static
 void tcl_start(const char* program)
 
@@ -221,6 +225,9 @@ void tcl_start(const char* program)
   interp = Tcl_CreateInterp();
   int rc = Tcl_Init(interp);
   check(rc == TCL_OK, "Tcl_Init failed!");
+
+  Tcl_CreateObjCommand(interp, "do_fork_cmd",
+                       do_fork_cmd, NULL, NULL);
 }
 #endif
 
@@ -241,11 +248,25 @@ execute(const char* command)
   return EXIT_SUCCESS;
 }
 #elif MODE == MODE_TCL_SYSTEM
-
-
-
+{
+  // printf("TCL_SYSTEM %s\n", command);
+  char script[buffer_size];
+  sprintf(script, "do_fork_cmd \"%s\"", command);
+  // printf("TCL_SYSTEM %s\n", script);
+  int rc = Tcl_Eval(interp, script);
+  if (rc != TCL_OK)
+    return EXIT_FAILURE;
+  return EXIT_SUCCESS;
+}
 #endif
 
+static int do_fork_cmd(ClientData cdata, Tcl_Interp* interp,
+                       int objc, Tcl_Obj* const objv[])
+{
+  printf("do_fork_cmd\n");
+  char* cmd = Tcl_GetString(objv[1]);
+  do_fork(cmd);
+}
 
 static
 void tcl_finalize()

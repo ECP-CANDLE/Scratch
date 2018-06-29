@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -11,6 +12,7 @@ const int MAX_ARGS = 16;
 
 void do_fork(const char* command)
 {
+  // printf("do_fork()\n");
   char* cmd = strdup(command);
   pid_t child = fork();
   if (child == -1)
@@ -31,7 +33,8 @@ void do_fork(const char* command)
     }
     t[i] = NULL;
     int rc = execvp(cmd, t);
-    assert(rc == 0);
+    printf("child failed! %s\n", strerror(errno));
+    exit(0);
   }
   // printf("child: %i\n", child);
   pid_status(child);
