@@ -9,7 +9,7 @@ fi
 
 export NODES=$1
 export TASKS=$2
-WALLTIME=00:30:00
+WALLTIME=${WALLTIME:-00:30:00}
 
 DATE=$( date "+%Y-%m-%d_%H:%M:%S" )
 OUTPUT=out-$DATE.txt
