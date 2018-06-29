@@ -20,10 +20,13 @@ CFLAGS = -DMODE=$(MODE)
 
 all: manytask.x
 
-main.o: Makefile
+%.o: Makefile stuff.h
 
-manytask.x: main.o
-	$(CC) -o $(@) $(<) $(LIBS)
+once.x: once.o stuff.o
+	$(CC) -o $(@) $(^) $(LIBS)
+
+manytask.x: main.o stuff.o
+	$(CC) -o $(@) $(^) $(LIBS)
 
 clean::
 	rm -fv *.x *.o

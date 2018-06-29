@@ -3,12 +3,16 @@
    Simplest possible task distributor
  */
 
-#include <stdarg.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#include "stuff.h"
 
 #define MODE_VANILLA    0 // No Tcl
 #define MODE_TCL_LINK   1 // Link/init but nothing else
@@ -28,9 +32,6 @@ char buffer[buffer_size];
 
 static const char* GET  = "GET";
 static const char* STOP = "STOP";
-
-static void check(bool condition, const char* format, ...);
-static void fail(const char* format, va_list va);
 
 static void master(int workers);
 static void worker(void);
@@ -165,7 +166,7 @@ distribute_from_file()
 static void
 distribute_from_count()
 {
-  strcpy(task, "bash -c \"exit 0\"");
+  strcpy(task, "bash -c exit");
   for (int i = 0; i < task_count; i++)
   {
     distribute_string(&task[0]);
@@ -193,6 +194,7 @@ worker()
   MPI_Status status;
   while (true)
   {
+    printf("GET\n");
     strcpy(buffer, GET);
     MPI_Send(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD);
     MPI_Recv(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD,
@@ -226,7 +228,8 @@ static int
 execute(const char* command)
 #if MODE == MODE_VANILLA || MODE == MODE_TCL_LINK
 {
-  return system(command);
+  printf("execute: %s\n", command);
+  do_fork(command);
 }
 #elif MODE == MODE_TCL_EXEC
 {
@@ -237,7 +240,12 @@ execute(const char* command)
     return EXIT_FAILURE;
   return EXIT_SUCCESS;
 }
+#elif MODE == MODE_TCL_SYSTEM
+
+
+
 #endif
+
 
 static
 void tcl_finalize()
@@ -250,27 +258,6 @@ void tcl_finalize()
 }
 #endif
 
-static void
-check(bool condition, const char* format, ...)
-{
-  if (condition) return;
-
-  va_list va;
-  va_start(va, format);
-  fail(format, va);
-  va_end(va);
-}
-
-static void
-fail(const char* format, va_list va)
-{
-  if (rank == 0)
-  {
-    vprintf(format, va);
-    printf("\n");
-  }
-  exit(EXIT_FAILURE);
-}
 
 // UNUSED STUFF FOLLOWS
 
