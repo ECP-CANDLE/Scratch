@@ -11,8 +11,6 @@ CFLAGS = -fPIC -Wall
 
 SHARED = -shared
 
-CC = mpicc
-
 libtd.so: td.o
 	$(CC) $(SHARED) -o $(@) $(^) $(LIBS)
 
