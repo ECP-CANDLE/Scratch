@@ -33,10 +33,10 @@ c_init(ClientData cdata, Tcl_Interp *interp,
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
   pid_t self = getpid();
-  printf("rank: %i self: %i\n", mpi_rank, self);
+  printf("rank: %5i self: %5i\n", mpi_rank, self);
 
   char filename[1024];
-  sprintf(filename, "out-%04i.txt", mpi_rank);
+  sprintf(filename, "rank-%04i.txt", mpi_rank);
   freopen(filename, "w", stdout);
   
   Tcl_Obj* result = Tcl_NewIntObj(mpi_rank);
