@@ -19,8 +19,9 @@ static const char* STOP = "STOP";
 static int mpi_rank, mpi_size;
 static double time_start;
 
-static int c_init(ClientData cdata, Tcl_Interp *interp,
-                   int objc, Tcl_Obj *const objv[])
+static int
+c_init(ClientData cdata, Tcl_Interp *interp,
+       int objc, Tcl_Obj *const objv[])
 {
   memset(buffer, 0, buffer_size);
   
@@ -46,8 +47,9 @@ static int c_init(ClientData cdata, Tcl_Interp *interp,
 
 char* task = "echo HELLO";
 
-static int c_serve(ClientData cdata, Tcl_Interp *interp,
-                   int objc, Tcl_Obj *const objv[])
+static int
+c_serve(ClientData cdata, Tcl_Interp *interp,
+        int objc, Tcl_Obj *const objv[])
 {
   assert(objc == 2);
   
@@ -79,8 +81,9 @@ static int c_serve(ClientData cdata, Tcl_Interp *interp,
   return TCL_OK;
 }
 
-static int c_get(ClientData cdata, Tcl_Interp *interp,
-                 int objc, Tcl_Obj *const objv[])
+static int
+c_get(ClientData cdata, Tcl_Interp *interp,
+      int objc, Tcl_Obj *const objv[])
 {
   strcpy(buffer, GET);
   MPI_Send(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD);
@@ -93,8 +96,9 @@ static int c_get(ClientData cdata, Tcl_Interp *interp,
   return TCL_OK;
 }
 
-static int c_system(ClientData cdata, Tcl_Interp *interp,
-                    int objc, Tcl_Obj *const objv[])
+static int
+c_system(ClientData cdata, Tcl_Interp *interp,
+         int objc, Tcl_Obj *const objv[])
 {
   char** cmd = malloc(objc * sizeof(char*));
   for (int i = 0; i < objc; i++)
@@ -136,8 +140,9 @@ static int c_system(ClientData cdata, Tcl_Interp *interp,
   return TCL_OK;
 }
 
-static int c_finalize(ClientData cdata, Tcl_Interp *interp,
-                      int objc, Tcl_Obj *const objv[])
+static int
+c_finalize(ClientData cdata, Tcl_Interp *interp,
+           int objc, Tcl_Obj *const objv[])
 {
   MPI_Barrier(MPI_COMM_WORLD);
   double time_stop = MPI_Wtime();
@@ -153,15 +158,11 @@ Td_Init(Tcl_Interp* interp)
   if (Tcl_InitStubs(interp, "8.6", 0) == NULL)
     return TCL_ERROR;
 
-//  if (Tcl_PkgProvide(interp, "", "0.0") == TCL_ERROR)
-  //  return TCL_ERROR;
-
   Tcl_CreateObjCommand(interp, "c_init",     c_init,     NULL, NULL);
   Tcl_CreateObjCommand(interp, "c_serve",    c_serve,    NULL, NULL);
   Tcl_CreateObjCommand(interp, "c_get",      c_get,      NULL, NULL);
   Tcl_CreateObjCommand(interp, "c_system",   c_system,   NULL, NULL);
   Tcl_CreateObjCommand(interp, "c_finalize", c_finalize, NULL, NULL);
-  
   
   return TCL_OK;
 }
