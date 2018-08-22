@@ -4,6 +4,10 @@ module load torque
 
 set -eu
 export NODES=$1
+export PPN=$2
+
+export PROCS=$(( NODES * PPN ))
+export TASKS=1 # $(( PROCS * 2 ))
 
 export THIS=$( readlink --canonicalize-existing $( dirname $0 ) )
 
@@ -14,6 +18,5 @@ OUTPUT=$( readlink --canonicalize-existing $OUTPUT )
 cd $OUTPUT
 m4 $THIS/qsub-swan-template.sh > qsub-swan.sh
 
-qsub -l nodes=$NODES \
-     -o $OUTPUT/output.txt \
-     qsub-swan.sh
+set -x
+qsub qsub-swan.sh
