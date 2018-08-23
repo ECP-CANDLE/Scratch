@@ -4,6 +4,8 @@ load libtd.so
 puts "TD START"
 
 set rank [ c_init ]
+puts "init"
+flush stdout
 
 set tasks [ lindex $argv 0 ]
 
@@ -14,6 +16,8 @@ if { $rank == 0 } {
   c_serve $tasks
 } else {
   while true {
+    # puts "get..."
+    flush stdout
     set cmd [ c_get ]
     puts "cmd: $cmd"
     if { $cmd eq "STOP" } break

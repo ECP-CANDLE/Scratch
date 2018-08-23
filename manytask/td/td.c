@@ -29,7 +29,7 @@ static void print(const char* format, ...);
 
 static int
 c_init(ClientData cdata, Tcl_Interp *interp,
-       int objc, Tcl_Obj *const objv[])
+       int objc, Tcl_Obj* const objv[])
 {
   memset(buffer, 0, buffer_size);
 
@@ -50,9 +50,9 @@ c_init(ClientData cdata, Tcl_Interp *interp,
   // time_delay(0.1);
   // xlb_data_init(1,0);
 
-  char filename[1024];
-  sprintf(filename, "rank-%04i.txt", mpi_rank);
-  freopen(filename, "w", stdout);
+  /* char filename[1024]; */
+  /* sprintf(filename, "rank-%04i.txt", mpi_rank); */
+  /* freopen(filename, "w", stdout); */
 
   Tcl_Obj* result = Tcl_NewIntObj(mpi_rank);
   Tcl_SetObjResult(interp, result);
@@ -64,7 +64,7 @@ char* task = "echo HELLO";
 
 static int
 c_serve(ClientData cdata, Tcl_Interp *interp,
-        int objc, Tcl_Obj *const objv[])
+        int objc, Tcl_Obj* const objv[])
 {
   assert(objc == 2);
 
@@ -98,8 +98,9 @@ c_serve(ClientData cdata, Tcl_Interp *interp,
 
 static int
 c_get(ClientData cdata, Tcl_Interp *interp,
-      int objc, Tcl_Obj *const objv[])
+      int objc, Tcl_Obj* const objv[])
 {
+  // print("get\n");
   strcpy(buffer, GET);
   MPI_Send(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD);
   MPI_Status status;
@@ -113,21 +114,27 @@ c_get(ClientData cdata, Tcl_Interp *interp,
 
 static int
 c_system(ClientData cdata, Tcl_Interp *interp,
-         int objc, Tcl_Obj *const objv[])
+         int objc, Tcl_Obj* const objv[])
 {
-  print("c_system\n");
+  // print("c_system: objc=%i\n", objc);
   char** cmd = malloc(objc * sizeof(char*));
   int i = 0;
-  for ( ; i < objc; i++)
+  for ( ; i < objc-1; i++)
+  {
     cmd[i] = strdup(Tcl_GetStringFromObj(objv[i+1], NULL));
+    // printf("cmd[%i]=%s\n", i, cmd[i]);
+  }
   cmd[i] = NULL;
   print("FORK\n");
+
   pid_t pid = fork();
   if (pid == 0)
   {
     execvp(cmd[0], cmd);
     print("FAIL:  execvp failed!\n");
     print("ERROR: %s\n", strerror(errno));
+    // print("FAKE\n");
+    // exit(0);
   }
   else
   {
@@ -163,7 +170,7 @@ c_system(ClientData cdata, Tcl_Interp *interp,
 
 static int
 c_finalize(ClientData cdata, Tcl_Interp *interp,
-           int objc, Tcl_Obj *const objv[])
+           int objc, Tcl_Obj* const objv[])
 {
   print("BARRIER\n");
   MPI_Barrier(MPI_COMM_WORLD);

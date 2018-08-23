@@ -1,13 +1,13 @@
 
 # TD: Tcl Driver
 
-TCL = ${HOME}/sfw/tcl-8.6.6
+# TCL = ${HOME}/sfw/tcl-8.6.6
 
 SWIFT  = ${HOME}/proj/swift-t-2018-08-12
 CUTILS = $(SWIFT)/c-utils/code
 ADLB   = $(SWIFT)/lb/code
 
-INCLUDES = -I $(TCL)/include
+INCLUDES = -I ${TCL}/include
 # -I $(CUTILS)/src -I $(ADLB)/src -I $(ADLB)
 LIBS =  -L $(TCL)/lib  -ltcl8.6
 #	-L $(ADLB)/lib -ladlb   \
