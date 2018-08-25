@@ -5,16 +5,19 @@ import sys;
 n = argv("n");
 N = string2int(n);
 
-printf("workers: %i", turbine_workers());
-printf("n: %i", n);
+this = getenv("THIS");
 
-app bash(int i)
+printf("workers: %i", turbine_workers());
+printf("tasks:   %i", n);
+
+app bash(string this, int i)
 {
-  "bash" "-c" "exit" ; // ("echo "+i) ;
+  "bash" (this/"task.sh") ;
+    // "-c" "exit" ; // ("echo "+i) ;
   // "hostname" ;
 }
 
 foreach i in [0:N-1]
 {
-  bash(i);
+  bash(this, i);
 }
