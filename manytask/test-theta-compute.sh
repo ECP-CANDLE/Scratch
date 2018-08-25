@@ -7,21 +7,28 @@ then
   exit 1
 fi
 
-export NODES=$1
+export PROCS=$1
 export TASKS=$2
-WALLTIME=${WALLTIME:-00:30:00}
+WALLTIME=${WALLTIME:-00:05:00}
+# WALLTIME=00:30:00
 
-DATE=$( date "+%Y-%m-%d_%H:%M:%S" )
+export PPN=${PPN:-1}
+NODES=$(( PROCS / PPN ))
+
+echo PROCS=$PROCS PPN=$PPN NODES=$NODES TASKS=$TASKS WALLTIME=$WALLTIME
+
+# Export to m4
+export DATE=$( date "+%Y-%m-%d_%H:%M:%S" )
 OUTPUT=out-$DATE.txt
+echo OUTPUT=$OUTPUT
+echo
 
 {
-  echo "# DATE: $DATE"
   m4 < template-theta.sh.m4
 } > run.sh
 chmod u+x run.sh
 
-# debug-cache-quad
-QUEUE=default
+export QUEUE=${QUEUE:-default}
 # QUEUE=debug-cache-quad
 
 MAIL_ARG="--notify woz@anl.gov"
@@ -35,6 +42,8 @@ JOB=$( qsub --project   CSC249ADOA01 \
             $MAIL_ARG \
             run.sh )
 
-echo JOB=$JOB
+echo JOB=$JOB | tee -a $OUTPUT
 
 cqwait $JOB
+
+echo JOB COMPLETE $( date "+%Y/%m/%d %H:%M" )

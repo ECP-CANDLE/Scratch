@@ -167,7 +167,8 @@ distribute_from_file()
 static void
 distribute_from_count()
 {
-  strcpy(task, "bash2 -c exitx");
+  strcpy(task, "bash -c exit");
+  // strcpy(task, "bash \"/home/wozniak/proj/SV/workflows/common/sh/model.sh\"");
   for (int i = 0; i < task_count; i++)
   {
     distribute_string(&task[0]);
@@ -195,7 +196,6 @@ worker()
   MPI_Status status;
   while (true)
   {
-    printf("GET\n");
     strcpy(buffer, GET);
     MPI_Send(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD);
     MPI_Recv(buffer, buffer_size, MPI_BYTE, 0, 0, MPI_COMM_WORLD,
@@ -215,7 +215,6 @@ static int do_fork_cmd(ClientData cdata, Tcl_Interp *interp,
 
 static
 void tcl_start(const char* program)
-
 #if MODE == MODE_VANILLA
 // No Tcl
 {}
