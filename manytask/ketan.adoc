@@ -1,0 +1,18 @@
+
+Instructions for benchmark on Summitdev:
+
+.  Edit run-swift-sdev.sh to
+.. set PROJECT
+.. set Swift/T location (if needed)
+. Run:
+----
+$ export PROCS=16 PPN=16
+$ ./run-swift-sdev.sh loop.swift -n=$((PROCS*2))
+----
+
+This will run loop.swift
+
+Try to run as many PROCS as possible, by powers of 2: 16,32,...
+Ideally get to 4K or so.
+
+Then share the output directories with me.
