@@ -20,7 +20,7 @@ export WALLTIME=00:02:00
 export PPN=2
 
 PYTHONHOME="/lus/theta-fs0/projects/Candle_ECP/ncollier/py2_tf_gcc6.3_eigen3_native"
-R=/projects/Candle_ECP/swift/deps/R-3.4.1/lib64/R 
+R=/projects/Candle_ECP/swift/deps/R-3.4.1/lib64/R
 
 LLP=$R/lib
 
