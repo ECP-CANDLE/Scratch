@@ -1,21 +1,31 @@
 
-Instructions for benchmark on Summitdev:
+= Notes for Scaling Study on Summitdev/Summit
+
+== Quick start
 
 .  Edit run-swift-sdev.sh to
 .. set PROJECT
 .. set Swift/T location (if needed)
 . Run:
+
 ----
 $ export PROCS=16 PPN=16
-$ ./run-swift-sdev.sh loop.swift -n=$((PROCS*2))
+$ ./run-swift-sdev.sh loop.swift -n=$((PROCS*10))
 ----
 
 This will run loop.swift
 
-Try to run as many PROCS as possible, by powers of 2: 16,32,...
-Ideally get to 4K or so.
+== Methodology
 
-Then share the output directories with me.
+. Try to run as many PROCS as possible, by powers of 2: 4,8,16,...,2K
+. Record ADLB Elapsed time using the scan.sh script
+. Post the results in the spreadsheet here:
+https://docs.google.com/spreadsheets/d/1NYxOFd-iedl03ilxX1mYzE5hcTnvs3fMAmcHxGqQK_k
+
+== Conventions
+
+. Save all your TURBINE_OUTPUT directories, use the default naming scheme
+. Make them public when you get the chance
 
 == Singularity
 
@@ -27,18 +37,32 @@ Works on the login node.
 
 Use python3 for keras, but this must be done on a compute node.
 
-== Next steps
+Request features with Hong-Jun Yoon <yoonh@ornl.gov>
+
+== Experiments
+
+Wozniak/Jain will test up to 32*16=512 processes on Summitdev, Maheshwari will run the bigger jobs on Summit
+
+[width="50%"]
+|==============================================
+| Sheet   | User      | Description
+| n:bash  | Wozniak   | Native call to bash
+| c:bash  | Jain      | Container call to bash
+| n:keras | Maheswari | Native call to keras
+| c:keras | Jain      | Container call to keras
+|==============================================
 
 === Done
 
-. Basic shell task from Swift/T at 4K cores
+. Basic shell task from Swift/T - need to re-run with more tasks (sheet: n:bash) (Wozniak)
 
 === TODO
 
-. Load Keras from Python in container in shell script (no Swift/T)
-. Run a CANDLE Benchmark from Python in container in shell script (no Swift/T)
-. Run dummy task.sh in the container from Swift/T
-. Run Python in container from Swift/T
-. Run Python+Keras in container from Swift/T
-. Run Python+Keras+Benchmark (one shot) in container from Swift/T
-. Run mlrMBO workflow in container
+. Load Keras from Python in container in shell script (no Swift/T) (Jain - Works)
+. Run a CANDLE Benchmark from Python in container in shell script (no Swift/T) (Jain - Works)
+. Run dummy task.sh in the container from Swift/T (Jain - Works)
+. Run Python in container from Swift/T (Jain?)
+. Run Python+Keras in container from Swift/T (Jain?)
+. Run Python+Keras+Benchmark (one shot) in container from Swift/T (Jain?)
+. Run mlrMBO workflow in container (Jain- needs dependencies)
+.. Need R
