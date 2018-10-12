@@ -1,9 +1,13 @@
 #!/bin/zsh
 set -eu
 
-DIR=$1
+if (( ${#*} != 1 ))
+then
+  print "Requires directory!"
+  return 1
+fi
 
-set -x
+DIR=$1
 
 OUTPUTS=( $DIR/f-*.txt )
 if (( ${#OUTPUTS} == 0 ))
