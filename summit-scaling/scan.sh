@@ -12,4 +12,4 @@ then
   return 1
 fi
 
-tclsh scan.tcl $DIR
+tclsh scan.tcl $DIR $OUTPUTS
