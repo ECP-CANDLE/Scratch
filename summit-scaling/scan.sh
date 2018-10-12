@@ -3,4 +3,13 @@ set -eu
 
 DIR=$1
 
-lsd_leaf $DIR | tclsh scan.tcl
+set -x
+
+OUTPUTS=( $DIR/f-*.txt )
+if (( ${#OUTPUTS} == 0 ))
+then
+  echo "No outputs found in $DIR"
+  return 1
+fi
+
+tclsh scan.tcl $DIR
