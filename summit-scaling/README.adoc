@@ -10,10 +10,13 @@
 
 ----
 $ export PROCS=16 PPN=16
-$ ./run-swift-sdev.sh loop.swift -n=$((PROCS*10))
+$ ./run-swift-sdev.sh loop.swift -n=$((PROCS*10)) --task=task-exit.sh
 ----
 
-This will run loop.swift
+This will run loop.swift and invoke task-exit.sh 160 times.
+
+We can easily copy task-exit.sh to run our other experiments.
+
 
 == Methodology
 
@@ -44,13 +47,13 @@ Request features with Hong-Jun Yoon <yoonh@ornl.gov>
 Wozniak/Jain will test up to 32*16=512 processes on Summitdev, Maheshwari will run the bigger jobs on Summit
 
 [width="50%"]
-|==============================================
-| Sheet   | User      | Description
-| n:bash  | Wozniak   | Native call to bash
-| c:bash  | Jain      | Container call to bash
-| n:keras | Maheswari | Native call to keras
-| c:keras | Jain      | Container call to keras
-|==============================================
+|====
+| Sheet   | User      | Task         | Description
+| n:bash  | Wozniak   | task-exit.sh | Native call to bash
+| c:bash  | Jain      | ???          | Container call to bash
+| n:keras | Maheswari | ???          | Native call to keras
+| c:keras | Jain      | ???          | Container call to keras
+|====
 
 === Done
 
