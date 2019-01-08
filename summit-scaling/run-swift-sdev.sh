@@ -14,7 +14,7 @@ module load spectrum-mpi
 export THIS=$( readlink --canonicalize $( dirname $0 ) )
 
 export PROJECT=MED106 # CSC249ADOA01
-export WALLTIME=15
+export WALLTIME=30
 # echo QUEUE=$QUEUE
 
 set -x
