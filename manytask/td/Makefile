@@ -7,7 +7,7 @@ SWIFT  = ${HOME}/proj/swift-t-2018-08-12
 CUTILS = $(SWIFT)/c-utils/code
 ADLB   = $(SWIFT)/lb/code
 
-INCLUDES = -I ${TCL}/include
+INCLUDES = -I ${TCL}/include ${EXTRA_INCLUDES}
 # -I $(CUTILS)/src -I $(ADLB)/src -I $(ADLB)
 LIBS =  -L $(TCL)/lib  -ltcl8.6
 #	-L $(ADLB)/lib -ladlb   \
