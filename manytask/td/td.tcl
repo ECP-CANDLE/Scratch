@@ -1,4 +1,6 @@
 
+# Task Distributor
+
 load libtd.so
 
 puts "TD START"
@@ -12,9 +14,11 @@ set tasks [ lindex $argv 0 ]
 # source $env(THIS)/tcl/master.tcl
 
 if { $rank == 0 } {
+  # Server
   puts "serving tasks: $tasks"
   c_serve $tasks
 } else {
+  # Worker
   while true {
     # puts "get..."
     flush stdout

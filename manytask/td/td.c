@@ -1,4 +1,10 @@
 
+/**
+   TD.C
+   Hand-coded Tcl extension functions.
+   No SWIG!
+*/
+
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
