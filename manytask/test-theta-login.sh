@@ -20,5 +20,5 @@ which mpiexec
 
 set -x
 # {
-  nice mpiexec -n $NODES ./manytask.x $TASKS
+  nice mpiexec -n $NODES ./manytask.x -n $TASKS
 # } > $OUTPUT
