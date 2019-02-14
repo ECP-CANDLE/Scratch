@@ -3,7 +3,7 @@ set -e
 
 module swap PrgEnv-intel PrgEnv-gnu
 module load gcc
-module list
+# module list
 
 which cc gcc
 
