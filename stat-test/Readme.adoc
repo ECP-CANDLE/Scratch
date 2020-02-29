@@ -1,10 +1,14 @@
 
-== 2020-02-27
+== 2020-02-29
 
-. A tumor type (cell type) produces more false negatives compared to true positives than others
+. A tumor type (cell type) produces more false positives compared to true positives than other tumor cell types
 
-. A drug type based on mode of action produces more false negatives compared to true positives than others
+. A tumor cell produces more false positives compared to true positives than other tumor cells
 
-. A study produces more false negatives compared to true positives than others
+. A drug type based on mode of action produces more false positives compared to true positives than others
+
+. A drug produces more false positives compared to true positives than other drugs
+
+. A study produces more false positives compared to true positives than others
 
 . Selection of data in the training set can improve the false positive to true positive ratio
