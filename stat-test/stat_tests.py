@@ -59,7 +59,8 @@ def significance_test(tumors):
            f"z-score={zscores[best]:0.3f} "
            f"p-value={p_values[best]:0.3f}"))
 
+    # We use HIT/MISS for easier grepping later
     if p_values[best] < 0.05:
-        print("sample is statistically significant")
+        print("HIT:  sample is statistically significant")
     else:
-        print("sample is not statistically significant")
+        print("MISS: sample is not statistically significant")
