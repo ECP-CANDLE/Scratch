@@ -53,15 +53,6 @@ def get_XPs(filename):
                              Result.FP : fps })
     return results
 
-# # Generate some data
-# import random
-# tumors = []
-# for i in range(0, tumor_count):
-#     tumors.append({})
-#     tumors[i][Result.TP] = random.randint(0, trials)
-#     tumors[i][Result.FP] = trials - tumors[i][Result.TP]
-
-# significance_test(tumors)
 
 argv = parse_args()
 tumors = get_XPs(argv["data"])
