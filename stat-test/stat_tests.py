@@ -54,6 +54,7 @@ def significance_test(tumors):
     best = np.argmin(p_values)
     print((f"lowest p-value sample: "
            f"index={best} "
+           f"name='{tumors[best]['name']}' "
            f"value={data[best]:0.3f} "
            f"z-score={zscores[best]:0.3f} "
            f"p-value={p_values[best]:0.3f}"))

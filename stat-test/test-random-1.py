@@ -22,6 +22,7 @@ import random
 tumors = []
 for i in range(0, tumor_count):
     tumors.append({})
+    tumors[i]["name"] = str(i)
     tumors[i][Result.TP] = random.randint(0, trials)
     tumors[i][Result.FP] = trials - tumors[i][Result.TP]
 

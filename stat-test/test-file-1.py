@@ -12,7 +12,7 @@ Compute the z-score of the tumor type and its corresponding p-value
 at a significance level of 0.05 .
 """
 
-import pprint
+from pprint import pprint
 
 from stat_tests import Result, significance_test
 
@@ -30,7 +30,7 @@ def parse_args():
 
 def get_XPs(filename):
     """ Read/return the TPs and FPs """
-    results = {}
+    results = []
     with open(filename) as fp:
         line = fp.readline() # Discard header
         while True:
@@ -47,9 +47,10 @@ def get_XPs(filename):
             tps = int(float(tps_s))
             fps_s = line[p2+1:p3]
             fps = int(float(fps_s))
-            print(name, ":", tps, ":", fps)
-            results[name] = { Result.TP : tps,
-                              Result.FP : fps }
+            # print(name, ":", tps, ":", fps)
+            results.append({ "name" : name,
+                             Result.TP : tps,
+                             Result.FP : fps })
     return results
 
 # # Generate some data
@@ -64,6 +65,5 @@ def get_XPs(filename):
 
 argv = parse_args()
 tumors = get_XPs(argv["data"])
-
-
-# pprint tumors
+# pprint(tumors)
+significance_test(tumors)
