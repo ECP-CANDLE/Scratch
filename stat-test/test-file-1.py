@@ -53,7 +53,7 @@ def get_XPs(filename):
             tps = int(float(tps_s))
             fps_s = line[p3+1:p4]
             fps = int(float(fps_s))
-            print("%-20s %3i %3i" % (name, tps, fps))
+            # print("%-20s %3i %3i" % (name, tps, fps))
             if tps == 0 and fps == 0:
                 ignored += 1
                 continue
