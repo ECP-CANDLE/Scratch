@@ -1,5 +1,5 @@
 
-== 2020-02-29
+== Statements: 2020-02-29
 
 . A tumor type (cell type) produces more false positives compared to true positives than other tumor cell types
 
@@ -12,3 +12,51 @@
 . A study produces more false positives compared to true positives than others
 
 . Selection of data in the training set can improve the false positive to true positive ratio
+
+== File index
+
+stat_tests.py::
+The library of stats tests we are using (just one for now).
+
+get-data.zsh::
+Retrieves the TSVs from Globus.
+
+test-random-1.py::
+Tests the stats_tests module on random dummy data.
+
+test-file-1.py::
+Runs the stats_tests module on a given TSV file.
+
+test-files.sh::
+Runs test-file1.py on a whole given directory tree.
+
+== Usage
+
+=== One-shot
+
+Assume that the data is in directory (or soft link) ./data/ :
+
+----
+$ python ./test-file-1.py data/top21_r.5_gap1/ccounts.tsv
+ignored: 114
+mean: 0.461
+std:  0.306
+lowest p-value sample: index=19 name='CCLE.SCC9' value=0.000 z-score=-1.506 p-value=0.066
+MISS: sample is not statistically significant
+----
+
+This measures FP/(TP+FP) for each TSV file.  The lowest p-value is captured and reported.  If it is below 0.05, it is flagged with the token "HIT", else "MISS".
+
+The count of records where TP==FP==0 is shown as "ignored".
+
+=== Test multiple files
+
+----
+$ ./test-files.sh data
+TSVS: 35
+TSV: data/top21_r.5_baseline/ccounts.tsv
+TSV: data/top21_r.5_baseline/moacounts.tsv
+...
+----
+
+The results are recorded in corresponding *.stats files containing the one-shot text output.
