@@ -28,7 +28,11 @@ def significance_test(tumors):
     # Construct the Numpy data
     data = np.zeros(tumor_count, dtype=np.float64)
     for i in range(0, tumor_count):
-        data[i] = tumors[i][Result.FP] / tumor_count
+        trials = tumors[i][Result.FP] + tumors[i][Result.TP]
+        if trials != 0:
+            data[i] = tumors[i][Result.FP] / trials
+        else:
+            data[i] = np.nan
 
     # Report basic statistics
     # print(data)
