@@ -29,7 +29,11 @@ def parse_args():
     return argv
 
 def get_XPs(filename):
-    """ Read/return the TPs and FPs """
+    """
+    Read/return the TPs and FPs
+    If TPs == FPs == 0 , we ignore the record
+    """
+    ignored = 0
     results = []
     with open(filename) as fp:
         line = fp.readline() # Discard header
@@ -42,15 +46,21 @@ def get_XPs(filename):
             if p2 < 0: raise Exception("Bad data!")
             p3 = line.find("\t", p2+1)
             if p3 < 0: raise Exception("Bad data!")
+            p4 = line.find("\t", p3+1)
+            if p4 < 0: raise Exception("Bad data!")
             name = line[0:p1]
             tps_s = line[p1+1:p2]
             tps = int(float(tps_s))
-            fps_s = line[p2+1:p3]
+            fps_s = line[p3+1:p4]
             fps = int(float(fps_s))
-            # print(name, ":", tps, ":", fps)
+            print("%-20s %3i %3i" % (name, tps, fps))
+            if tps == 0 and fps == 0:
+                ignored += 1
+                continue
             results.append({ "name" : name,
                              Result.TP : tps,
                              Result.FP : fps })
+    print("ignored: %i" % ignored)
     return results
 
 
