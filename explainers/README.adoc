@@ -3,6 +3,8 @@
 
 == Initial test
 
+For any of these tests, substitute WORKFLOW with "one-shot" or "workflow"
+
 === Summit-Interactive
 
 Get interactive session with 1 node, e.g.:
@@ -14,7 +16,7 @@ $ bsub -W 1:00 -nnodes $NODES -P $PROJECT -Is /bin/zsh -l
 In the interactive session, do:
 
 ----
-$ ./workflow.sh summit-i
+$ ./workflow.sh summit-i WORKFLOW
 ----
 
 === Summit-Job
@@ -24,7 +26,7 @@ Separate job mode.
 On the login node:
 
 ----
-$ ./workflow.sh summit-j
+$ ./workflow.sh summit-j WORKFLOW
 ----
 
 Output will be in ./turbine-output

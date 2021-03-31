@@ -11,15 +11,17 @@ from tensorflow.keras.models import Model, load_model
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import sys
 from time import time
 from alibi.explainers import CounterFactual, CounterFactualProto
 #print('TF version: ', tf.__version__)
 #print('Eager execution enabled: ', tf.executing_eagerly()) # False
 import pickle
 
-
 print("CF_FAKE: Imports OK.")
 
-def run():
-    print("CF_FAKE.run(): OK.")
-    return "CF_FAKE RETURN OK"
+def run(i):
+    msg = "CF_FAKE.run(%s): OK." % i
+    print("python: " + msg)
+    sys.stdout.flush()
+    return "return: " + msg

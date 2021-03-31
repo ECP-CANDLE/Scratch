@@ -1,19 +1,17 @@
 #!/bin/bash
 set -eu
 
-if (( $# != 1 ))
+if (( $# != 2 ))
 then
-  echo "Provide SITE!"
+  echo "Provide SITE and WORKFLOW!"
   exit 1
 fi
 
 SITE=$1
+WORKFLOW=$2
 
 export THIS=$( readlink --canonicalize $( dirname $0 ) )
 source $THIS/env-$SITE.sh
 
-# swift-t $MACHINE workflow.swift $*
-# swift-t $MACHINE one-shot.swift $*
-
-stc -u one-shot.swift
-turbine $MACHINE -n 4 -e PYTHONPATH=$PYTHONPATH one-shot.tic
+stc -u $WORKFLOW.swift
+turbine $MACHINE -n 4 -e PYTHONPATH=$PYTHONPATH $WORKFLOW.tic
