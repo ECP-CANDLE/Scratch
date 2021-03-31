@@ -12,8 +12,8 @@ SITE=$1
 export THIS=$( readlink --canonicalize $( dirname $0 ) )
 source $THIS/env-$SITE.sh
 
-# swift-t workflow.swift $*
-# swift-t one-shot.swift $*
+# swift-t $MACHINE workflow.swift $*
+# swift-t $MACHINE one-shot.swift $*
 
 stc -u one-shot.swift
-turbine -n 4 -e PYTHONPATH=$PYTHONPATH one-shot.tic
+turbine $MACHINE -n 4 -e PYTHONPATH=$PYTHONPATH one-shot.tic
