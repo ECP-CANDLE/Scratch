@@ -1,0 +1,30 @@
+
+= Explainers
+
+== Initial test
+
+=== Summit-Interactive
+
+Get interactive session with 1 node, e.g.:
+
+----
+$ bsub -W 1:00 -nnodes $NODES -P $PROJECT -Is /bin/zsh -l
+----
+
+In the interactive session, do:
+
+----
+$ ./workflow.sh summit-i
+----
+
+=== Summit-Job
+
+Separate job mode.
+
+On the login node:
+
+----
+$ ./workflow.sh summit-j
+----
+
+Output will be in ./turbine-output
