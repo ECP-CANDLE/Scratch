@@ -22,3 +22,4 @@ print("CF_FAKE: Imports OK.")
 
 def run():
     print("CF_FAKE.run(): OK.")
+    return "CF_FAKE RETURN OK"

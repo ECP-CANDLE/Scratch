@@ -1,4 +1,7 @@
 
+# ENV SUMMIT COMMON
+# Sourced by env-summit-i and env-summit-j
+
 # Let modules initialize LD_LIBRARY_PATH before changing it:
 set +eu # modules create errors outside our control
 module load spectrum-mpi/10.3.1.2-20200121
@@ -19,11 +22,6 @@ LD_LIBRARY_PATH+=:$PY/lib
 LD_LIBRARY_PATH+=:/lib64
 export PYTHONHOME=$PY
 PATH=$PY/bin:$PATH
+export PYTHONPATH=$THIS
 
 export LD_LIBRARY_PATH="/sw/summit/gcc/7.4.0/lib64:$LD_LIBRARY_PATH:/sw/summit/gcc/6.4.0/lib64"
-
-MACHINE="-m lsf"
-
-# Default PROJECT for CANDLE
-#export QUEUE=${QUEUE:-batch-hm}
-export PROJECT=${PROJECT:-MED106}
