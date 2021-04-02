@@ -23,5 +23,46 @@ print("CF_FAKE: Imports OK.")
 def run(i):
     msg = "CF_FAKE.run(%s): OK." % i
     print("python: " + msg)
-    sys.stdout.flush()
-    return "return: " + msg
+    #sys.stdout.flush()
+
+
+
+    model_nt3 = tf.keras.models.load_model('./nt3.autosave.model')
+    with open('./nt3.autosave.data.pkl', 'rb') as pickle_file:
+            X_train,Y_train,X_test,Y_test = pickle.load(pickle_file)
+
+    print ("opened files")
+    shape_cf = (1,) + X_train.shape[1:]
+    print(shape_cf)
+    target_proba = 0.9
+    tol = 0.1 # want counterfactuals with p(class)>0.90
+    target_class = 'other' # any class other than will do
+    max_iter = 1000
+    lam_init = 1e-1
+    max_lam_steps = 20
+    learning_rate_init = 0.1
+    feature_range = (0,1)
+
+
+    cf = CounterFactual(model_nt3, shape=shape_cf, target_proba=target_proba, tol=tol,
+                        target_class=target_class, max_iter=max_iter, lam_init=lam_init,
+                        max_lam_steps=max_lam_steps, learning_rate_init=learning_rate_init,
+                        feature_range=feature_range)
+        
+
+
+
+    shape = X_train[0].shape[0]
+    results=[]
+    X = np.concatenate([X_train,X_test])
+    x_sample=X[i:i+1]
+    print(x_sample.shape)
+    start = time()
+    explanation = cf.explain(x_sample)
+    print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
+    print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
+    results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
+
+    print (results) 
+    return result
+    #return "return: " + msg
