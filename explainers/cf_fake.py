@@ -1,4 +1,3 @@
-
 # CF FAKE PY
 # Test that loading TF, etc., work as intended
 
@@ -50,26 +49,23 @@ def run(i):
                         feature_range=feature_range)
         
 
+   bunch = 2
+   for j in range(bunch*(i-1), bunch*i):
+      shape = X_train[0].shape[0]
+      results=[]
+      X = np.concatenate([X_train,X_test])
+      x_sample=X[j:j+1]
+      print(x_sample.shape)
+      start = time()
+      explanation = cf.explain(x_sample)
+      #print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
+      #print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
+      results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
+      print("DONE sample=", j)
+   
+   filename = "save.p" + str(i)
+   pickle.dump(results, open(filename, "wb"))
+   results=[]
 
 
-    shape = X_train[0].shape[0]
-    results=[]
-    X = np.concatenate([X_train,X_test])
-    x_sample=X[i:i+1]
-    print(x_sample.shape)
-    start = time()
-    explanation = cf.explain(x_sample)
-    #print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
-    #print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
-    results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
-    print("saving i=", i)
-    filename = "save.p" + str(i)
-    pickle.dump(results, open(filename, "wb"))
-    results=[]
-
-
-   # print (results) 
-    #filename = "save.p" + i
-    #pickle.dump(results, open(filename, "wb")    
-    #return msg result
-    #return "return: " + msg
+   return msg
