@@ -27,8 +27,8 @@ def run(i):
 
 
 
-    model_nt3 = tf.keras.models.load_model('./nt3.autosave.model')
-    with open('./nt3.autosave.data.pkl', 'rb') as pickle_file:
+    model_nt3 = tf.keras.models.load_model('/gpfs/alpine/med106/scratch/jain/Scratch/explainers/nt3.autosave.model')
+    with open('/gpfs/alpine/med106/scratch/jain/Scratch/explainers/nt3.autosave.data.pkl', 'rb') as pickle_file:
             X_train,Y_train,X_test,Y_test = pickle.load(pickle_file)
 
     print ("opened files")
@@ -59,10 +59,17 @@ def run(i):
     print(x_sample.shape)
     start = time()
     explanation = cf.explain(x_sample)
-    print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
-    print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
+    #print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
+    #print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
     results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
+    print("saving i=", i)
+    filename = "save.p" + str(i)
+    pickle.dump(results, open(filename, "wb"))
+    results=[]
 
-    print (results) 
-    return result
+
+   # print (results) 
+    #filename = "save.p" + i
+    #pickle.dump(results, open(filename, "wb")    
+    #return msg result
     #return "return: " + msg

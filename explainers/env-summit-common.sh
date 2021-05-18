@@ -8,6 +8,8 @@ module load spectrum-mpi/10.3.1.2-20200121
 module unload darshan-runtime
 # module load ibm-wml-ce/1.6.2-3
 module list
+module load cuda/10.2.89
+
 set -eu
 
 # Swift/T settings
