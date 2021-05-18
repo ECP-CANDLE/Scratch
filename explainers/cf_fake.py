@@ -50,7 +50,7 @@ def run(i):
         
 
     bunch = 2
-    for j in range(bunch*(i-1), bunch*i):
+    for j in range(bunch*(i), bunch*(i+1)):
        shape = X_train[0].shape[0]
        results=[]
        X = np.concatenate([X_train,X_test])
