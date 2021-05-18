@@ -49,23 +49,23 @@ def run(i):
                         feature_range=feature_range)
         
 
-   bunch = 2
-   for j in range(bunch*(i-1), bunch*i):
-      shape = X_train[0].shape[0]
-      results=[]
-      X = np.concatenate([X_train,X_test])
-      x_sample=X[j:j+1]
-      print(x_sample.shape)
-      start = time()
-      explanation = cf.explain(x_sample)
+    bunch = 2
+    for j in range(bunch*(i-1), bunch*i):
+       shape = X_train[0].shape[0]
+       results=[]
+       X = np.concatenate([X_train,X_test])
+       x_sample=X[j+1:j+2]
+       print(x_sample.shape)
+       start = time()
+       explanation = cf.explain(x_sample)
       #print('Counterfactual prediction: {}, {}'.format(explanation.cf['class'], explanation.cf['proba']))
       #print("Actual prediction: {}".format(model_nt3.predict(x_sample)))
-      results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
-      print("DONE sample=", j)
+       results.append([explanation.cf['X'],explanation.cf['class'], explanation.cf['proba']])
+       print("DONE sample=", j)
    
-   filename = "save.p" + str(i)
-   pickle.dump(results, open(filename, "wb"))
-   results=[]
+    filename = "save.p" + str(i)
+    pickle.dump(results, open(filename, "wb"))
+    results=[]
 
 
-   return msg
+    return msg
