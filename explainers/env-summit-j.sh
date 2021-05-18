@@ -8,5 +8,9 @@ MACHINE="-m lsf"
 # Default PROJECT for CANDLE
 #export QUEUE=${QUEUE:-batch-hm}
 export PROJECT=${PROJECT:-MED106}
-export WALLTIME=00:20:00
-export PPN=4
+
+# Adjust as needed:
+export WALLTIME=02:00:00
+export PROCS=${PROCS:-15}
+# MPI processes per node.  This should not exceed PROCS.
+export PPN=1
