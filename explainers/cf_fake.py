@@ -49,10 +49,10 @@ def run(i):
                         feature_range=feature_range)
         
 
-    bunch = 2
+    bunch = 10
+    results=[]
     for j in range(bunch*(i), bunch*(i+1)):
        shape = X_train[0].shape[0]
-       results=[]
        X = np.concatenate([X_train,X_test])
        x_sample=X[j+1:j+2]
        print(x_sample.shape)
@@ -69,3 +69,10 @@ def run(i):
 
 
     return msg
+
+def main():
+    for i in range(0,1):
+    	run(i)
+    
+if __name__ == "__main__":
+    main()

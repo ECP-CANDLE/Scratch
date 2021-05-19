@@ -2,7 +2,7 @@
 import io;
 import python;
 
-foreach i in [0:14]
+foreach i in [0:2]
 {
   msg = python_persist("import cf_fake as cf", "cf.run(%i)"%i);
 // is this allowed? how to dump all msgs to a pickle file

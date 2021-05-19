@@ -10,7 +10,7 @@ MACHINE="-m lsf"
 export PROJECT=${PROJECT:-MED106}
 
 # Adjust as needed:
-export WALLTIME=02:00:00
+export WALLTIME=00:42:00
 export PROCS=${PROCS:-15}
 # MPI processes per node.  This should not exceed PROCS.
 export PPN=1
