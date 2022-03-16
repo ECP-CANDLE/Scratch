@@ -1,6 +1,7 @@
 #!/bin/bash
 
-echo TASK.SH rank=$ADLB_RANK_SELF $*
+# echo TASK.SH rank=$ADLB_RANK_SELF $*
+exit 0
 
 # CONTAINER=( /lustre/atlas/world-shared/stf007/ForArvind/arvind4_ppc64.img
 #            --bind $HOME:$HOME )
