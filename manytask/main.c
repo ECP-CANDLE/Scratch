@@ -210,8 +210,10 @@ worker()
   // printf("worker rank: %i : tasks: %i\n", rank, count);
 }
 
+#if MODE != MODE_VANILLA
 static int do_fork_cmd(ClientData cdata, Tcl_Interp *interp,
                        int objc, Tcl_Obj *const objv[]);
+#endif
 
 static
 void tcl_start(const char* program)
@@ -259,6 +261,7 @@ execute(const char* command)
 }
 #endif
 
+#if MODE != MODE_VANILLA
 static int do_fork_cmd(ClientData cdata, Tcl_Interp* interp,
                        int objc, Tcl_Obj* const objv[])
 {
@@ -266,6 +269,7 @@ static int do_fork_cmd(ClientData cdata, Tcl_Interp* interp,
   char* cmd = Tcl_GetString(objv[1]);
   do_fork(cmd);
 }
+#endif
 
 static
 void tcl_finalize()

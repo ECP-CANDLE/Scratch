@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# echo "HOSTNAME $(hostname)"
 # echo TASK.SH rank=$ADLB_RANK_SELF $*
 exit 0
 

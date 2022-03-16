@@ -7,13 +7,17 @@ MODE_TCL_EXEC   = 2 # Use Tcl exec
 MODE_TCL_SYSTEM = 3 # Use Tcl extension for system()
 
 # USER EDIT START
+
 MODE = $(MODE_TCL_SYSTEM)
 
 # Theta:
 TCL = ${HOME}/Public/sfw/theta/tcl-8.6.6-mt-g
 
 # Dunedin:
-TCL = ${HOME}/sfw/tcl-8.6.8-global
+# MODE = $(MODE_VANILLA)
+# TCL = ${HOME}/Public/sfw/x86_64/tcl-8.6.6-global-gcc-4.8.1
+# TCL = ${HOME}/sfw/tcl-8.6.8-global
+
 # USER EDIT END
 
 ifneq ($(MODE),$(MODE_VANILLA))
