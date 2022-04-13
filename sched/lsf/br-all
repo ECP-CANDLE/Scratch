@@ -1,0 +1,83 @@
+#!/bin/zsh
+set -eu
+
+# BR ALL
+
+THIS=${PWD:A}
+
+
+BR_ALL_TCL=${THIS}/br-all.tcl
+
+# START=$SECONDS
+
+help()
+{
+  print "BR-ALL OPTIONS DELAY MINNODES"
+  print "  -h            this help"
+  print "  -e            exit when empty"
+  print "  -i INCR       increment delay by I"
+  print "  -m MAXNODES   do not report jobs bigger than this"
+  print " DELAY:         update delay"
+  print " MINNODES:      do not report jobs smaller than this"
+}
+
+zparseopts -D -E h=H e=E i:=I m:=M
+
+if (( ${#H} ))      { help ; exit   }
+if (( ${#*} != 2 )) { help ; exit 1 }
+
+DELAY=$1
+MINNODES=$2
+
+if (( ${#I} )) {
+  INCR=${I[2]}
+} else {
+  INCR=0
+}
+
+if (( ${#M} )) {
+  MAXNODES=${M[2]}
+} else {
+  MAXNODES=1000000
+}
+
+export EMPTY_EXIT=0
+if (( ${#E} )) {
+     EMPTY_EXIT=1
+}
+
+spaces()
+{
+  repeat $1 printf " "
+}
+
+DATE_FMT_S="%D{%Y-%m-%d} %D{%H:%M:%S}"
+
+date-s()
+# 2018-07-27 13:24:56 : Easy reading
+{
+  print ${(%)DATE_FMT_S}
+}
+
+INDENT=37
+
+# set -x
+CODE=0
+while
+do
+  # --noheader is broken 2018/08/20
+  if ! bjobs -u all \
+       -o "jobid user stat queue nexec_host run_time time_left job_name" | \
+     tclsh $BR_ALL_TCL $MINNODES $MAXNODES
+  then
+    CODE=1
+  fi
+  spaces $INDENT ; date-s
+  if (( CODE )) break
+  read -t $DELAY || true
+  (( DELAY = DELAY + INCR ))
+done
+
+# Local Variables:
+# mode: sh;
+# End:
