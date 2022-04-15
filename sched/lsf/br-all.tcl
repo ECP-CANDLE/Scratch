@@ -23,6 +23,16 @@ proc secs_to_hh:mm { secs hh mm } {
   set m [ expr int($r / 60) ]
 }
 
+proc hm_to_hh:mm { hm } {
+  # hm: "h:m" - may be e.g. 0:1 from Summit bjobs
+  # show . hm
+  set tokens [ split $hm ":" ]
+  # show tokens
+  lassign $tokens h m
+  set result [ format "%2i:%02i" $h $m ]
+  return $result
+}
+
 proc printf { args } {
     set newline ""
     if { [ lindex $args 0 ] == "-n" } {
