@@ -8,6 +8,12 @@ set maxnodes [ lindex $argv 1 ]
 
 # Utilities
 
+proc arrays { args } {
+    foreach name $args {
+        uplevel "array set $name {}"
+    }
+}
+
 proc secs_to_mm:ss { secs mm ss } {
   upvar $mm m
   upvar $ss s
