@@ -14,6 +14,37 @@ proc arrays { args } {
     }
 }
 
+# usage: head <list> <value>?
+# @return and remove first element of list
+proc head { args } {
+    set count 1
+    if { [ llength $args ] == 1 } {
+        set name [ lindex $args 0 ]
+    } elseif { [ llength $args ] == 2 } {
+        set count [ lindex $args 0 ]
+        set name  [ lindex $args 1 ]
+    } else {
+        error "head: requires: <count>? <list> - received: $args"
+    }
+
+    upvar $name L
+
+    set result [ list ]
+    for { set i 0 } { $i < $count } { incr i } {
+        lappend result [ lindex $L 0 ]
+        set L [ lreplace $L 0 0 ]
+    }
+    return $result
+}
+
+proc spaces { n } {
+  set space ""
+  for { set i 0 } { $i < $n } { incr i } {
+    append space " "
+  }
+  return $space
+}
+
 proc secs_to_hh:mm { secs hh mm } {
   upvar $hh h
   upvar $mm m
