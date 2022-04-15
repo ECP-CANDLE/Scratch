@@ -14,11 +14,13 @@ proc arrays { args } {
     }
 }
 
-proc secs_to_mm:ss { secs mm ss } {
+proc secs_to_hh:mm { secs hh mm } {
+  upvar $hh h
   upvar $mm m
-  upvar $ss s
-  set m [ expr int($secs / 60) ]
-  set s [ expr $secs - ($m*60) ]
+  set h [ expr int($secs / 3600) ]
+  if { $h == 0 } { set h "" }
+  set r [ expr int($secs % 3600) ]
+  set m [ expr int($r / 60) ]
 }
 
 proc printf { args } {
