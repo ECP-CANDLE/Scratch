@@ -1,14 +1,34 @@
 
 # BR ALL TCL
 
-package require woztools
-
-source ~/mcs/ShellTools/tcl/font.tcl
+source $env(THIS)/font.tcl
 
 set minnodes [ lindex $argv 0 ]
 set maxnodes [ lindex $argv 1 ]
 
-# Headers
+# Utilities
+
+proc secs_to_mm:ss { secs mm ss } {
+  upvar $mm m
+  upvar $ss s
+  set m [ expr int($secs / 60) ]
+  set s [ expr $secs - ($m*60) ]
+}
+
+proc printf { args } {
+    set newline ""
+    if { [ lindex $args 0 ] == "-n" } {
+        set newline "-nonewline"
+        head args
+    }
+    if { [ llength $args ] == 0 } {
+        error "printf: Requires format!"
+    }
+    set fmt [ lindex [ head args ] 0 ]
+    puts {*}$newline [ format $fmt {*}$args ]
+}
+
+# Read headers from bjobs
 gets stdin line
 
 set results [ list ]
