@@ -3,10 +3,10 @@ import argparse
 import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(
-                    prog="cell-grep-extract",
-                    description=
+    prog="cell-grep-extract",
+    description=
     """
-    Make table.txt for cell_grep.py
+    Make table.txt for cell_grep.py .
     Input: cellosaurus.xml Output: table.txt
     """)
 parser.add_argument("filename")

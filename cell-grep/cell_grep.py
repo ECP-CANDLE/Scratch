@@ -2,15 +2,18 @@
 import argparse
 
 parser = argparse.ArgumentParser(
-                    prog="cell-grep",
-                    description=
+    prog="cell-grep",
+    description=
     """
-    Select keys from GDSC that match or don't
+    Select keys from GDSC that match or don't.
+    The pattern is for a simple substring match.
     Input: GDSC2 table.txt Output: selection.txt
     """)
+
 parser.add_argument("data")
 parser.add_argument("table")
 parser.add_argument("pattern")
+parser.add_argument("-n", "--negate", action="store_true", help="Negate the match")
 parser.add_argument("output")
 
 args = parser.parse_args()
@@ -56,7 +59,8 @@ for line in original:
     else:
         continue
     found_count += 1
-    if args.pattern in row:
+    match = (args.pattern in row) ^ args.negate
+    if match:
         select_count += 1
         row = row.strip()
         fp.write(row)

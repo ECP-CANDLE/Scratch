@@ -1,0 +1,49 @@
+
+= Cell-GREP
+
+== Usage
+
+=== Step 1: Download the data
+
+==== Get the Cellosaurus XML
+
+----
+$ wget wget https://ftp.expasy.org/databases/cellosaurus/cellosaurus.xml
+----
+
+==== Get the GDSC XLSX
+
+----
+$ wget https://ftp.mcs.anl.gov/pub/candle/public/improve/reproducability/DeepTTC/GDSC2_fitted_dose_response_25Feb20.xlsx
+----
+
+Then convert the XLSX to CSV via Excel "Save As".  By convention we call this `$GDSC`.
+
+=== Step 2: Make the table
+
+First, we extract the Cellosaurus data to a fast table:
+
+----
+$ python extract.py cellosaurus.xml table.txt
+----
+
+See also `python extract.py --help`
+
+=== Step 3: Run the query
+
+For example, to extract all males in GDSC, do:
+
+----
+$ python cell_grep.py $GDSC table.txt "Male" select-Male.txt
+----
+
+To extract all females in GDSC, do:
+----
+$ python cell_grep.py $GDSC table.txt "Female" select-Female.txt
+# or
+$ python cell_grep.py $GDSC table.txt --negate "Male" select-not-Male.txt
+----
+
+The pattern in quotes is any text substring against the metadata in `table.txt`.
+
+See also `python cell_grep.py --help`
