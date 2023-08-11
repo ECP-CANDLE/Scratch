@@ -1,6 +1,10 @@
 
 = Cell-GREP
 
+== Overview
+
+The GDSC dataset (and possibly others) contains cell lines that have metadata in https://www.cellosaurus.org[Cellosaurus].  To create data subsets based on demographic information, we need to be able to select from GDSC based on metadata.  Cell-GREP makes it easy to create a new dataset consisting of data selected from GDSC via metadata string matching.
+
 == Usage
 
 === Step 1: Download the data
