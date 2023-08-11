@@ -33,14 +33,17 @@ print("original data size: %i" % len(original))
 with open(args.table, "r") as fp:
     table = fp.readlines()
 print("table size: %i" % len(table))
+# index maps string alias to line number
 index = {}
 i = 0
 for entry in table:
+    entry = entry.strip()
     tokens = entry.split("\t")
     index[tokens[0]] = i
     aliases = tokens[4].split(",")
     for alias in aliases:
         index[alias] = i
+        # print("alias: '%s' line: %i" % (alias, i))
     i += 1
 
 found_count = 0
@@ -59,6 +62,8 @@ for line in original:
         found = True
         row = table[index[name]]
     else:
+        # print("not found: " + name)
+        # exit()
         continue
     found_count += 1
     match = (args.pattern in row) ^ args.negate

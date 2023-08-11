@@ -37,14 +37,21 @@ for cell_line in L:
     if sex == None or "unspec" in sex: sex = "None"
     age = cell_line.get("age")
     if age == None or "unspec" in age: age = "None"
-    else: age = age.replace("Y", "")
+    if "Y" in age:
+        # Cut out Y for Year and any month info
+        c = age.find("Y")
+        age = age[:c]
     # print(sex)
     # print(age)
     aliases = []
     name_list = cell_line.find("name-list")
     for name in name_list:
         # print(name.text)
-        aliases.append(name.text)
+        alias = name.text
+        if "[" in alias:
+            c = alias.find("[")
+            alias = alias[:c].strip()
+        aliases.append(alias)
 
     comment_list = cell_line.find("comment-list")
     if comment_list is None:
