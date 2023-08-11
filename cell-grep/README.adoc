@@ -11,6 +11,8 @@ The GDSC dataset (and possibly others) contains cell lines that have metadata in
 
 ==== Get the Cellosaurus XML
 
+This is ~300 MB.
+
 ----
 $ wget https://ftp.expasy.org/databases/cellosaurus/cellosaurus.xml
 ----
