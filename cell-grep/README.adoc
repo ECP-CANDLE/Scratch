@@ -27,7 +27,7 @@ Then convert the XLSX to CSV via Excel "Save As".  By convention we call this `$
 
 === Step 2: Make the table
 
-First, we extract the Cellosaurus data to a fast table:
+First, we extract the Cellosaurus XML data to a smaller, faster table:
 
 ----
 $ python extract.py cellosaurus.xml table.txt
@@ -37,19 +37,23 @@ See also `python extract.py --help`
 
 === Step 3: Run the query
 
+We now use `cell_grep.py` to create a subset selection of the `$GDSC` dataset.
+
 For example, to extract all males in GDSC, do:
 
 ----
-$ python cell_grep.py $GDSC table.txt "Male" select-Male.txt
+$ python cell_grep.py $GDSC table.txt "Male" select-Male.csv
 ----
 
 To extract all females in GDSC, do:
 ----
-$ python cell_grep.py $GDSC table.txt "Female" select-Female.txt
+$ python cell_grep.py $GDSC table.txt "Female" select-Female.csv
 # or
-$ python cell_grep.py $GDSC table.txt --negate "Male" select-not-Male.txt
+$ python cell_grep.py $GDSC table.txt --negate "Male" select-not-Male.csv
 ----
 
 The pattern in quotes is any text substring against the metadata in `table.txt`.
+
+You may need to either use Excel again to convert the selected CSV back to XLSX, or modify your model code to accept a CSV input dataset (`pandas.read_csv()`).
 
 See also `python cell_grep.py --help`
