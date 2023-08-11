@@ -46,7 +46,9 @@ for entry in table:
 found_count = 0
 total_count = 0
 select_count = 0
+
 fp = open(args.output,  "w")
+fp.write(header)
 
 for line in original:
     total_count += 1
@@ -62,11 +64,7 @@ for line in original:
     match = (args.pattern in row) ^ args.negate
     if match:
         select_count += 1
-        row = row.strip()
-        fp.write(row)
-        fp.write("\t # ")
-        fp.write(name)
-        fp.write("\n")
+        fp.write(line)
 
 print("found: %i , not found: %i , selected: %i" %
       (found_count, total_count-found_count, select_count))
