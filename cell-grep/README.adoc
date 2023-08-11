@@ -8,7 +8,7 @@
 ==== Get the Cellosaurus XML
 
 ----
-$ wget wget https://ftp.expasy.org/databases/cellosaurus/cellosaurus.xml
+$ wget https://ftp.expasy.org/databases/cellosaurus/cellosaurus.xml
 ----
 
 ==== Get the GDSC XLSX
