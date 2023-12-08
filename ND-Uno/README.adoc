@@ -5,24 +5,24 @@
 
 . Install Python 3.8
 . Install
++
 ----
 $ pip install tensorflow==2.10 pandas scikit-learn
 ----
-+
 . Install candle_lib
++
 ----
 $ git clone https://github.com/ECP-CANDLE/candle_lib.git
 $ cd candle_lib
 $ git checkout develop
 $ pip install .
 ----
-+
 . Download Uno
++
 ----
 $ git clone https://github.com/ECP-CANDLE/Benchmarks.git
 $ git checkout develop
 ----
-+
 . Set `CANDLE_DATA_DIR`
 ----
 $ export CANDLE_DATA_DIR=/large/device/directory
