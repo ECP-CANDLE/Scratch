@@ -3,6 +3,7 @@
 
 == Installation
 
+. Install Python 3.8
 . Install
 ----
 $ pip install tensorflow==2.10 pandas scikit-learn
@@ -35,10 +36,4 @@ This completes in under 2 minutes on my Quadro M4000, and requires 1.5 GB disk s
 ----
 $ python uno_baseline_keras2.py --config $PWD/uno_auc_model.txt \
          --epochs 1 --ckpt_save_interval 0 --ckpt_restart_mode off
-----
-
-
-== Workflow data
-
-----
 ----
