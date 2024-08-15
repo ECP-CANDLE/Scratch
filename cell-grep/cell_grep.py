@@ -175,7 +175,7 @@ def run_query(args, logger, header, input_lines, table, index):
               (found_count, total_count-found_count, select_count)
 
     if args.count:
-        print(msg)
+        fp.write(msg + "\n")
     else:
         logger.info(msg)
 
