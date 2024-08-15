@@ -130,6 +130,9 @@ def make_index(args, logger, table):
     for entry in table:
         entry = entry.strip()
         tokens = entry.split("\t")
+        if len(tokens) != 5:
+            raise UserError("bad table line %i: '%s'" %
+                            (i+1, str(tokens)))
         index[tokens[0]] = i
         aliases = tokens[4].split(",")
         for alias in aliases:
@@ -150,16 +153,21 @@ def run_query(args, logger, header, input_lines, table, index):
     if not args.count:
         fp.write(header)
 
+    tokens_required = len(header.split(","))
+
     for line in input_lines:
         total_count += 1
         tokens = line.split(",")
+        if len(tokens) < tokens_required:
+            raise UserError("bad input line: (%i/%i tokens) '%s'" %
+                            (len(tokens), tokens_required, str(tokens)))
         name = tokens[4]
         found = False
         if name in index:
             found = True
             row = table[index[name]]
         else:
-            # print("not found: " + name)
+            # logger.debug("cell not found: " + name)
             # exit()
             continue
         found_count += 1
@@ -171,7 +179,7 @@ def run_query(args, logger, header, input_lines, table, index):
 
     msg = ""
     if args.count or logger.isEnabledFor(logging.INFO):
-        msg = "found: %i , not found: %i , selected: %i" % \
+        msg = "cell lines: found=%i , not found=%i , selected=%i" % \
               (found_count, total_count-found_count, select_count)
 
     if args.count:
