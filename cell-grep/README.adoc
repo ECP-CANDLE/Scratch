@@ -57,3 +57,13 @@ The pattern in quotes is any text substring against the metadata in `table.txt`.
 You may need to either use Excel again to convert the selected CSV back to XLSX, or modify your model code to accept a CSV input dataset (`pandas.read_csv()`).
 
 See also `python cell_grep.py --help`
+
+=== Counts
+
+Provide `-c` to get a simple count instead of the output CSV.
+In this case, you do not need to provide an output CSV.
+
+The count report (enabled unless run under `--quiet`)
+shows the number of cell lines from `$GDSC` found in the table,
+the number of cell lines from `$GDSC` not found in the table,
+and the number of cell lines that matched the query.
