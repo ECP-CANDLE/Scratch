@@ -1,5 +1,10 @@
 
-import argparse
+"""
+CELL GREP
+See README
+"""
+
+
 import logging
 import sys
 
@@ -14,13 +19,13 @@ def main():
         logger = setup_logging(args)
         validate_args(args, logger)
 
-        header, input_lines = read_input(args, logger)
-        logger.info("original data size: %i" % len(input_lines))
+        header, input_lines = read_input(args)
+        logger.info("original data size: %i", len(input_lines))
 
         table = read_table(args)
-        logger.info("table size: %i" % len(table))
+        logger.info("table size: %i", len(table))
 
-        index = make_index(args, logger, table)
+        index = make_index(table)
 
         run_query(args, logger, header, input_lines, table, index)
 
@@ -30,6 +35,7 @@ def main():
 
 
 def parse_args():
+    import argparse
     parser = argparse.ArgumentParser(
         prog="cell-grep",
         description=
@@ -80,14 +86,14 @@ def validate_args(args, logger):
     if logger.isEnabledFor(logging.DEBUG):
         V = vars(args)
         for a in V:
-            logger.debug("%-8s %s" % (a + ":", V[a]))
+            logger.debug("%-8s %s", (a + ":", V[a]))
 
     if not args.count and args.output is None:
         raise UserError("If not counting, " +
                         "you must provide an output file")
 
 
-def read_input(args, logger):
+def read_input(args):
     """
     Return header: first line of input, containing CSV column headers
            lines:  list of str for rest of file
@@ -107,7 +113,7 @@ def read_input(args, logger):
             lines = fp.readlines()
     except OSError as e:
         raise UserError("could not read input: " + e.strerror +
-                        ": '%s'" % e.filename)
+                        ": '%s'" % e.filename) from e
 
     return header, lines
 
@@ -119,11 +125,11 @@ def read_table(args):
             table = fp.readlines()
     except OSError as e:
         raise UserError("could not read table: " + e.strerror +
-                        ": '%s'" % e.filename)
+                        ": '%s'" % e.filename) from e
     return table
 
 
-def make_index(args, logger, table):
+def make_index(table):
     """ Make a dict index that maps str alias to int line number """
     index = {}
     i = 0
@@ -162,9 +168,7 @@ def run_query(args, logger, header, input_lines, table, index):
             raise UserError("bad input line: (%i/%i tokens) '%s'" %
                             (len(tokens), tokens_required, str(tokens)))
         name = tokens[4]
-        found = False
         if name in index:
-            found = True
             row = table[index[name]]
         else:
             # logger.debug("cell not found: " + name)
@@ -196,7 +200,7 @@ def get_output(args):
             fp = open(args.output,  "w")
         except OSError as e:
             raise UserError("could not open output: " + e.strerror +
-                            ": '%s'" % e.filename)
+                            ": '%s'" % e.filename) from e
     return fp
 
 
