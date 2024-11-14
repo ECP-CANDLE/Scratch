@@ -67,3 +67,18 @@ The count report (enabled unless run under `--quiet`)
 shows the number of cell lines from `$GDSC` found in the table,
 the number of cell lines from `$GDSC` not found in the table,
 and the number of cell lines that matched the query.
+
+== Internals
+
+=== table.tsv
+
+The format of `table.tsv` is a list of lines, each like:
+
+----
+primary sex age population aliases
+----
+
+where `primary` is the primary name for that cell line, and
+where `aliases` is a comma-separated list of aliases for that cell line.
+
+This format is emitted by the end of `extract.py`.
