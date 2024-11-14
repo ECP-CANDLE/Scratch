@@ -53,6 +53,13 @@ for cell_line in L:
             alias = alias[:c].strip()
         aliases.append(alias)
 
+    xref_list = cell_line.find("xref-list")
+    if xref_list is not None:
+        # aliases.append("XREF")
+        for xref in xref_list:
+            # print(xref.attrib["accession"])
+            aliases.append(xref.attrib["accession"])
+
     comment_list = cell_line.find("comment-list")
     if comment_list is None:
         comment_list = []
