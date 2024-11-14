@@ -42,7 +42,7 @@ def parse_args():
         """
         Select keys from GDSC that match or don't.
         The pattern is for a simple substring match.
-        Input: GDSC2 table.txt Output: selection.txt
+        Input: GDSC2 table.tsv Output: selection.txt
         """)
     parser.add_argument("input_data",
                         help="The main GDSC CSV file")
