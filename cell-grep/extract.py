@@ -1,4 +1,9 @@
 
+"""
+EXTRACT
+See README
+"""
+
 import argparse
 import xml.etree.ElementTree as ET
 
@@ -24,19 +29,21 @@ count = 0
 
 fp = open(output, "w")
 
-L = root.find("cell-line-list")
+aliases: list[str]
+
+L = root.iterfind("cell-line-list")
 for cell_line in L:
     count += 1
-    accession_list = cell_line.find("accession-list")
+    accession_list = cell_line.iterfind("accession-list")
     primary = None
     for accession in accession_list:
         if accession.get("type") == "primary":
             primary = accession.text
-    if primary == None: continue
+    if primary is None: continue
     sex = cell_line.get("sex")
-    if sex == None or "unspec" in sex: sex = "None"
+    if sex is None or "unspec" in sex: sex = "None"
     age = cell_line.get("age")
-    if age == None or "unspec" in age: age = "None"
+    if age is None or "unspec" in age: age = "None"
     if "Y" in age:
         # Cut out Y for Year and any month info
         c = age.find("Y")
@@ -44,10 +51,11 @@ for cell_line in L:
     # print(sex)
     # print(age)
     aliases = []
-    name_list = cell_line.find("name-list")
+    name_list = cell_line.iterfind("name-list")
     for name in name_list:
         # print(name.text)
         alias = name.text
+        # assert alias is not None
         if "[" in alias:
             c = alias.find("[")
             alias = alias[:c].strip()
@@ -67,6 +75,7 @@ for cell_line in L:
     for comment in comment_list:
         if comment.get("category") == "Population":
             # print(comment.text.strip())
+            assert comment.text is not None
             population = comment.text.strip()
     if population is None:
         population = "None"
