@@ -22,7 +22,7 @@ def main():
         header, input_lines = read_input(args)
         logger.info("original data size: %i", len(input_lines))
 
-        table = read_table(args)
+        table = read_table(args.table)
         logger.info("table size: %i", len(table))
 
         index = make_index(table)
@@ -118,10 +118,10 @@ def read_input(args):
     return header, lines
 
 
-def read_table(args):
+def read_table(table):
     """ Return list of str for file lines """
     try:
-        with open(args.table, "r") as fp:
+        with open(table, "r") as fp:
             table = fp.readlines()
     except OSError as e:
         raise UserError("could not read table: " + e.strerror +
