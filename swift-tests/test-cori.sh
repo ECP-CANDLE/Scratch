@@ -13,8 +13,8 @@ set -eu
 SWIFT=/global/homes/w/wozniak/Public/sfw/compute/swift-t-2018-06-05
 PATH=$SWIFT/stc/bin:$SWIFT/turbine/bin:$PATH
 
-export PROJECT=debug #ecp-testbed-01
-export QUEUE=m2924 #debug-cache-quad
+export PROJECT=m2924 #ecp-testbed-01
+export QUEUE=debug #debug-cache-quad
 # export QUEUE=debug-flat-quad
 export WALLTIME=00:02:00
 export PPN=2
